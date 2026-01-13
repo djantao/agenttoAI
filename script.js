@@ -4,9 +4,10 @@ let conversation = [];
 let courses = [];
 let prompts = {};
 
-// 配置变量 - 添加默认的豆包API地址
+// 配置变量 - 添加默认的豆包API地址和模型名称
 let config = {
     doubaoApiUrl: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions', // 火山引擎豆包API默认地址
+    doubaoModel: 'doubao-lite', // 默认使用doubao-lite模型
     doubaoApiKey: '',
     notionApiToken: '',
     notionDatabaseId: ''
@@ -48,6 +49,7 @@ async function init() {
             
             // 获取表单数据
             const doubaoApiUrl = document.getElementById('doubaoApiUrl').value;
+            const doubaoModel = document.getElementById('doubaoModel').value;
             const doubaoApiKey = document.getElementById('doubaoApiKey').value;
             const notionApiToken = document.getElementById('notionApiToken').value;
             const notionDatabaseId = document.getElementById('notionDatabaseId').value;
@@ -55,6 +57,7 @@ async function init() {
             // 保存配置
             config = {
                 doubaoApiUrl,
+                doubaoModel,
                 doubaoApiKey,
                 notionApiToken,
                 notionDatabaseId
@@ -190,7 +193,7 @@ async function getNextQuestion() {
                 'Authorization': `Bearer ${config.doubaoApiKey}`
             },
             body: JSON.stringify({
-                model: 'doubao-12b', // 更换为常见的豆包模型名称
+                model: config.doubaoModel, // 使用配置中的模型名称
                 messages: [
                     { role: 'system', content: systemPrompt },
                     ...conversation.slice(0, currentQuestion * 2 - 1) // 只传递当前轮次之前的对话
@@ -227,7 +230,7 @@ async function generateCoursesWithDoubao() {
                 'Authorization': `Bearer ${config.doubaoApiKey}`
             },
             body: JSON.stringify({
-                model: 'doubao-12b', // 更换为常见的豆包模型名称
+                model: config.doubaoModel, // 使用配置中的模型名称
                 messages: [
                     { role: 'system', content: systemPrompt },
                     ...conversation
