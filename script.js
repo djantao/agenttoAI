@@ -387,11 +387,25 @@ async function generateCoursesWithDoubao() {
         
         // 解析生成的课程列表
         try {
-            // 提取JSON部分
-            const jsonMatch = botResponse.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                const coursesData = JSON.parse(jsonMatch[0]);
-                courses = coursesData.courses;
+            // 提取JSON部分（查找最后一个JSON对象，因为前面可能有表格格式）
+            const jsonMatches = botResponse.match(/\{[\s\S]*\}/g);
+            if (jsonMatches && jsonMatches.length > 0) {
+                // 取最后一个JSON对象，因为前面可能有表格格式
+                const jsonMatch = jsonMatches[jsonMatches.length - 1];
+                const coursesData = JSON.parse(jsonMatch);
+                
+                // 将新格式转换为原有格式，确保兼容性
+                courses = coursesData.courses.map(course => ({
+                    title: course.courseName,
+                    description: course.courseDescription,
+                    targetAudience: course.difficulty,
+                    duration: '未知', // 新格式中没有时长，暂时使用默认值
+                    chapters: course.chapters.map(chapter => ({
+                        title: chapter.title,
+                        description: chapter.coreObjective,
+                        duration: '未知' // 新格式中没有章节时长，暂时使用默认值
+                    }))
+                }));
                 
                 // 显示生成结果
                 addMessage('根据您的回答，我为您生成了以下课程列表：', 'bot');
