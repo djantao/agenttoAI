@@ -448,51 +448,60 @@ async function syncCoursesToNotion() {
 
 // 创建Notion页面
 async function createNotionPage(course) {
-    const response = await fetch(NOTION_API_URL, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${config.notionApiToken}`,
-            'Content-Type': 'application/json',
-            'Notion-Version': '2022-06-28'
-        },
-        body: JSON.stringify({
-            parent: {
-                database_id: config.notionDatabaseId
+    try {
+        const response = await fetch(NOTION_API_URL, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${config.notionApiToken}`,
+                'Content-Type': 'application/json',
+                'Notion-Version': '2022-06-28'
             },
-            properties: {
-                'Name': {
-                    title: [
-                        {
-                            text: {
-                                content: course.title
-                            }
-                        }
-                    ]
+            body: JSON.stringify({
+                parent: {
+                    database_id: config.notionDatabaseId
                 },
-                'Description': {
-                    rich_text: [
-                        {
-                            text: {
-                                content: course.description
+                properties: {
+                    'Name': {
+                        title: [
+                            {
+                                text: {
+                                    content: course.title
+                                }
                             }
+                        ]
+                    },
+                    'Description': {
+                        rich_text: [
+                            {
+                                text: {
+                                    content: course.description
+                                }
+                            }
+                        ]
+                    },
+                    'Status': {
+                        select: {
+                            name: '待学习'
                         }
-                    ]
-                },
-                'Status': {
-                    select: {
-                        name: '待学习'
                     }
                 }
-            }
-        })
-    });
-    
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Notion API错误: ${JSON.stringify(errorData)}`);
+            })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: '未知错误' }));
+            throw new Error(`Notion API错误: ${response.status} ${response.statusText} - ${errorData.code || ''} ${errorData.message || ''}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        if (error.message.includes('Failed to fetch')) {
+            // 检查是否是CORS错误
+            throw new Error(`Notion API请求失败：跨域请求被阻止(CORS)。Notion API不支持直接从浏览器调用，建议使用服务器代理或后端服务来转发请求。`);
+        } else {
+            throw error;
+        }
     }
-    
-    return await response.json();
 }
 
 // 页面加载完成后初始化
