@@ -152,7 +152,12 @@ async function sendMessage() {
         } else if (error.message.includes('401')) {
             errorMessage = 'API密钥无效，请检查您的配置。';
         } else if (error.message.includes('404')) {
-            errorMessage = 'API地址无效，请检查您的配置。';
+            // 区分API地址错误和模型不存在错误
+            if (error.message.includes('InvalidEndpointOrModel')) {
+                errorMessage = '模型名称无效或无访问权限，请检查模型配置。\n建议尝试的模型名称：doubao-12b, doubao-72b, doubao-lite';
+            } else {
+                errorMessage = 'API地址无效，请检查您的配置。';
+            }
         }
         
         addMessage(errorMessage, 'bot');
@@ -185,7 +190,7 @@ async function getNextQuestion() {
                 'Authorization': `Bearer ${config.doubaoApiKey}`
             },
             body: JSON.stringify({
-                model: 'doubao-pro',
+                model: 'doubao-12b', // 更换为常见的豆包模型名称
                 messages: [
                     { role: 'system', content: systemPrompt },
                     ...conversation.slice(0, currentQuestion * 2 - 1) // 只传递当前轮次之前的对话
@@ -222,7 +227,7 @@ async function generateCoursesWithDoubao() {
                 'Authorization': `Bearer ${config.doubaoApiKey}`
             },
             body: JSON.stringify({
-                model: 'doubao-pro',
+                model: 'doubao-12b', // 更换为常见的豆包模型名称
                 messages: [
                     { role: 'system', content: systemPrompt },
                     ...conversation
