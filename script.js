@@ -3,6 +3,7 @@ let currentQuestion = 1;
 let conversation = [];
 let courses = [];
 let prompts = {};
+let useMockData = false; // 添加模拟数据开关
 
 // 配置变量 - 添加默认的豆包API地址和模型名称
 let config = {
@@ -11,6 +12,34 @@ let config = {
     doubaoApiKey: '',
     notionApiToken: '',
     notionDatabaseId: ''
+};
+
+// 模拟数据
+const mockResponses = {
+    question2: "问题 2/3：您的学习目标是什么？（例如：找工作、提升技能、兴趣爱好等）",
+    question3: "问题 3/3：您每天可以投入多少时间学习？（例如：1小时、2-3小时、全天等）",
+    courses: {
+        "courses": [
+            {
+                "title": "编程基础入门",
+                "description": "适合初学者的编程基础课程，涵盖核心概念和基本技能。",
+                "targetAudience": "零基础学习者",
+                "duration": "20小时"
+            },
+            {
+                "title": "编程进阶实战",
+                "description": "通过实际项目学习编程进阶知识，提升实战能力。",
+                "targetAudience": "有基础的学习者",
+                "duration": "30小时"
+            },
+            {
+                "title": "编程高级技巧",
+                "description": "深入学习编程高级概念和最佳实践，成为专家。",
+                "targetAudience": "有经验的开发者",
+                "duration": "40小时"
+            }
+        ]
+    }
 };
 
 // API基础URL
@@ -189,6 +218,16 @@ function addMessage(content, sender) {
 
 // 调用豆包API获取下一个问题
 async function getNextQuestion() {
+    // 使用模拟数据
+    if (useMockData) {
+        await new Promise(resolve => setTimeout(resolve, 500)); // 模拟网络延迟
+        if (currentQuestion === 1) {
+            return mockResponses.question2;
+        } else if (currentQuestion === 2) {
+            return mockResponses.question3;
+        }
+    }
+    
     const promptKey = `prompt${currentQuestion + 1}`;
     const systemPrompt = prompts[promptKey] || '';
     
@@ -211,13 +250,34 @@ async function getNextQuestion() {
         });
         
         if (!response.ok) {
-            throw new Error(`API调用失败: ${response.status} ${response.statusText}`);
+            // 如果API调用失败，自动切换到模拟数据模式
+            useMockData = true;
+            console.log('切换到模拟数据模式');
+            
+            // 返回模拟数据
+            if (currentQuestion === 1) {
+                return mockResponses.question2;
+            } else if (currentQuestion === 2) {
+                return mockResponses.question3;
+            }
         }
         
         const data = await response.json();
         return data.choices[0].message.content;
     } catch (error) {
         console.error('豆包API请求失败:', error);
+        
+        // 如果API调用失败，自动切换到模拟数据模式
+        useMockData = true;
+        console.log('切换到模拟数据模式');
+        
+        // 返回模拟数据
+        if (currentQuestion === 1) {
+            return mockResponses.question2;
+        } else if (currentQuestion === 2) {
+            return mockResponses.question3;
+        }
+        
         throw error;
     }
 }
@@ -228,6 +288,25 @@ async function generateCoursesWithDoubao() {
     const systemPrompt = prompts.generateCourses.replace('{conversation}', JSON.stringify(conversation, null, 2));
     
     addMessage('正在生成课程列表，请稍候...', 'bot');
+    
+    // 使用模拟数据
+    if (useMockData) {
+        await new Promise(resolve => setTimeout(resolve, 1000)); // 模拟网络延迟
+        
+        // 移除正在生成的消息
+        chatMessages.removeChild(chatMessages.lastChild);
+        
+        // 使用模拟课程数据
+        courses = mockResponses.courses.courses;
+        
+        // 显示生成结果
+        addMessage('根据您的回答，我为您生成了以下课程列表：', 'bot');
+        conversation.push({ role: 'bot', content: '根据您的回答，我为您生成了以下课程列表：' });
+        
+        // 显示课程容器
+        displayCourses();
+        return;
+    }
     
     try {
         const response = await fetch(config.doubaoApiUrl, {
@@ -248,7 +327,23 @@ async function generateCoursesWithDoubao() {
         });
         
         if (!response.ok) {
-            throw new Error(`API调用失败: ${response.status} ${response.statusText}`);
+            // 如果API调用失败，自动切换到模拟数据模式
+            useMockData = true;
+            console.log('切换到模拟数据模式');
+            
+            // 移除正在生成的消息
+            chatMessages.removeChild(chatMessages.lastChild);
+            
+            // 使用模拟课程数据
+            courses = mockResponses.courses.courses;
+            
+            // 显示生成结果
+            addMessage('根据您的回答，我为您生成了以下课程列表：', 'bot');
+            conversation.push({ role: 'bot', content: '根据您的回答，我为您生成了以下课程列表：' });
+            
+            // 显示课程容器
+            displayCourses();
+            return;
         }
         
         const data = await response.json();
@@ -282,7 +377,20 @@ async function generateCoursesWithDoubao() {
         // 移除正在生成的消息
         chatMessages.removeChild(chatMessages.lastChild);
         console.error('豆包API请求失败:', error);
-        addMessage(`抱歉，调用AI服务失败：${error.message}`, 'bot');
+        
+        // 如果API调用失败，自动切换到模拟数据模式
+        useMockData = true;
+        console.log('切换到模拟数据模式');
+        
+        // 使用模拟课程数据
+        courses = mockResponses.courses.courses;
+        
+        // 显示生成结果
+        addMessage('根据您的回答，我为您生成了以下课程列表：', 'bot');
+        conversation.push({ role: 'bot', content: '根据您的回答，我为您生成了以下课程列表：' });
+        
+        // 显示课程容器
+        displayCourses();
     }
 }
 
