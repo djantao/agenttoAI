@@ -6,13 +6,13 @@ let prompts = {};
 
 // 配置变量
 let config = {
+    doubaoApiUrl: '',
     doubaoApiKey: '',
     notionApiToken: '',
     notionDatabaseId: ''
 };
 
 // API基础URL
-const DOUBAO_API_URL = 'https://api.doubao.com/v1/chat/completions';
 const NOTION_API_URL = 'https://api.notion.com/v1/pages';
 
 // DOM元素
@@ -43,30 +43,32 @@ async function init() {
     }
     
     // 配置表单提交事件
-    configForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        // 获取表单数据
-        const doubaoApiKey = document.getElementById('doubaoApiKey').value;
-        const notionApiToken = document.getElementById('notionApiToken').value;
-        const notionDatabaseId = document.getElementById('notionDatabaseId').value;
-        
-        // 保存配置
-        config = {
-            doubaoApiKey,
-            notionApiToken,
-            notionDatabaseId
-        };
-        
-        // 保存到localStorage
-        localStorage.setItem('aiLearningAssistantConfig', JSON.stringify(config));
-        
-        // 隐藏配置弹窗
-        configModal.style.display = 'none';
-        
-        // 初始化应用
-        await initializeApp();
-    });
+        configForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // 获取表单数据
+            const doubaoApiUrl = document.getElementById('doubaoApiUrl').value;
+            const doubaoApiKey = document.getElementById('doubaoApiKey').value;
+            const notionApiToken = document.getElementById('notionApiToken').value;
+            const notionDatabaseId = document.getElementById('notionDatabaseId').value;
+            
+            // 保存配置
+            config = {
+                doubaoApiUrl,
+                doubaoApiKey,
+                notionApiToken,
+                notionDatabaseId
+            };
+            
+            // 保存到localStorage
+            localStorage.setItem('aiLearningAssistantConfig', JSON.stringify(config));
+            
+            // 隐藏配置弹窗
+            configModal.style.display = 'none';
+            
+            // 初始化应用
+            await initializeApp();
+        });
 }
 
 // 初始化应用
@@ -142,7 +144,18 @@ async function sendMessage() {
         }
     } catch (error) {
         console.error('API调用失败:', error);
-        addMessage('抱歉，处理失败，请稍后重试。', 'bot');
+        let errorMessage = '抱歉，处理失败，请稍后重试。';
+        
+        // 根据错误类型提供更具体的提示
+        if (error.message.includes('Failed to fetch')) {
+            errorMessage = '网络连接失败，请检查您的网络设置或API地址是否正确。';
+        } else if (error.message.includes('401')) {
+            errorMessage = 'API密钥无效，请检查您的配置。';
+        } else if (error.message.includes('404')) {
+            errorMessage = 'API地址无效，请检查您的配置。';
+        }
+        
+        addMessage(errorMessage, 'bot');
     } finally {
         // 启用输入和发送按钮
         sendBtn.disabled = false;
@@ -164,29 +177,34 @@ async function getNextQuestion() {
     const promptKey = `prompt${currentQuestion + 1}`;
     const systemPrompt = prompts[promptKey] || '';
     
-    const response = await fetch(DOUBAO_API_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${config.doubaoApiKey}`
-        },
-        body: JSON.stringify({
-            model: 'doubao-pro',
-            messages: [
-                { role: 'system', content: systemPrompt },
-                ...conversation.slice(0, currentQuestion * 2 - 1) // 只传递当前轮次之前的对话
-            ],
-            max_tokens: 100,
-            temperature: 0.7
-        })
-    });
-    
-    if (!response.ok) {
-        throw new Error(`API调用失败: ${response.status}`);
+    try {
+        const response = await fetch(config.doubaoApiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${config.doubaoApiKey}`
+            },
+            body: JSON.stringify({
+                model: 'doubao-pro',
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    ...conversation.slice(0, currentQuestion * 2 - 1) // 只传递当前轮次之前的对话
+                ],
+                max_tokens: 100,
+                temperature: 0.7
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`API调用失败: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        return data.choices[0].message.content;
+    } catch (error) {
+        console.error('豆包API请求失败:', error);
+        throw error;
     }
-    
-    const data = await response.json();
-    return data.choices[0].message.content;
 }
 
 // 使用豆包API生成课程列表
@@ -196,53 +214,60 @@ async function generateCoursesWithDoubao() {
     
     addMessage('正在生成课程列表，请稍候...', 'bot');
     
-    const response = await fetch(DOUBAO_API_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${config.doubaoApiKey}`
-        },
-        body: JSON.stringify({
-            model: 'doubao-pro',
-            messages: [
-                { role: 'system', content: systemPrompt },
-                ...conversation
-            ],
-            max_tokens: 500,
-            temperature: 0.7
-        })
-    });
-    
-    if (!response.ok) {
-        throw new Error(`API调用失败: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    const botResponse = data.choices[0].message.content;
-    
-    // 移除正在生成的消息
-    chatMessages.removeChild(chatMessages.lastChild);
-    
-    // 解析生成的课程列表
     try {
-        // 提取JSON部分
-        const jsonMatch = botResponse.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            const coursesData = JSON.parse(jsonMatch[0]);
-            courses = coursesData.courses;
-            
-            // 显示生成结果
-            addMessage('根据您的回答，我为您生成了以下课程列表：', 'bot');
-            conversation.push({ role: 'bot', content: '根据您的回答，我为您生成了以下课程列表：' });
-            
-            // 显示课程容器
-            displayCourses();
-        } else {
-            throw new Error('无法提取JSON数据');
+        const response = await fetch(config.doubaoApiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${config.doubaoApiKey}`
+            },
+            body: JSON.stringify({
+                model: 'doubao-pro',
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    ...conversation
+                ],
+                max_tokens: 500,
+                temperature: 0.7
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`API调用失败: ${response.status} ${response.statusText}`);
         }
-    } catch (parseError) {
-        console.error('解析课程数据失败:', parseError);
-        addMessage('抱歉，生成课程列表失败，请稍后重试。', 'bot');
+        
+        const data = await response.json();
+        const botResponse = data.choices[0].message.content;
+        
+        // 移除正在生成的消息
+        chatMessages.removeChild(chatMessages.lastChild);
+        
+        // 解析生成的课程列表
+        try {
+            // 提取JSON部分
+            const jsonMatch = botResponse.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                const coursesData = JSON.parse(jsonMatch[0]);
+                courses = coursesData.courses;
+                
+                // 显示生成结果
+                addMessage('根据您的回答，我为您生成了以下课程列表：', 'bot');
+                conversation.push({ role: 'bot', content: '根据您的回答，我为您生成了以下课程列表：' });
+                
+                // 显示课程容器
+                displayCourses();
+            } else {
+                throw new Error('无法提取JSON数据');
+            }
+        } catch (parseError) {
+            console.error('解析课程数据失败:', parseError);
+            addMessage('抱歉，生成课程列表失败，请稍后重试。', 'bot');
+        }
+    } catch (error) {
+        // 移除正在生成的消息
+        chatMessages.removeChild(chatMessages.lastChild);
+        console.error('豆包API请求失败:', error);
+        addMessage(`抱歉，调用AI服务失败：${error.message}`, 'bot');
     }
 }
 
