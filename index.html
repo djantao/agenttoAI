@@ -7,6 +7,31 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <!-- 配置弹窗 -->
+    <div id="configModal" class="modal">
+        <div class="modal-content">
+            <h2>初始配置</h2>
+            <p>请输入以下配置信息，以便使用AI学习助手</p>
+            <form id="configForm">
+                <div class="form-group">
+                    <label for="doubaoApiKey">豆包API密钥：</label>
+                    <input type="password" id="doubaoApiKey" placeholder="请输入豆包API密钥" required>
+                </div>
+                <div class="form-group">
+                    <label for="notionApiToken">Notion API Token：</label>
+                    <input type="password" id="notionApiToken" placeholder="请输入Notion API Token" required>
+                </div>
+                <div class="form-group">
+                    <label for="notionDatabaseId">Notion数据库ID：</label>
+                    <input type="text" id="notionDatabaseId" placeholder="请输入Notion数据库ID" required>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="submit-btn">保存配置</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="container">
         <header>
             <h1>AI学习助手</h1>

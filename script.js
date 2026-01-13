@@ -4,15 +4,15 @@ let conversation = [];
 let courses = [];
 let prompts = {};
 
-// API配置
-// 注意：请在部署时设置环境变量，或使用安全的方式管理这些密钥
-// 请勿将真实密钥提交到代码仓库
-const DOUBAO_API_KEY = process.env.DOUBAO_API_KEY || 'YOUR_DOUBAO_API_KEY';
-const DOUBAO_API_URL = 'https://api.doubao.com/v1/chat/completions';
+// 配置变量
+let config = {
+    doubaoApiKey: '',
+    notionApiToken: '',
+    notionDatabaseId: ''
+};
 
-// Notion配置
-const NOTION_API_TOKEN = process.env.NOTION_API_TOKEN || 'YOUR_NOTION_API_TOKEN';
-const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID || 'YOUR_NOTION_DATABASE_ID';
+// API基础URL
+const DOUBAO_API_URL = 'https://api.doubao.com/v1/chat/completions';
 const NOTION_API_URL = 'https://api.notion.com/v1/pages';
 
 // DOM元素
@@ -25,6 +25,53 @@ const syncToNotionBtn = document.getElementById('syncToNotion');
 
 // 初始化事件监听器
 async function init() {
+    // 配置弹窗元素
+    const configModal = document.getElementById('configModal');
+    const configForm = document.getElementById('configForm');
+    
+    // 检查localStorage中是否有配置
+    const savedConfig = localStorage.getItem('aiLearningAssistantConfig');
+    
+    if (savedConfig) {
+        // 加载保存的配置
+        config = JSON.parse(savedConfig);
+        // 初始化应用
+        await initializeApp();
+    } else {
+        // 显示配置弹窗
+        configModal.style.display = 'flex';
+    }
+    
+    // 配置表单提交事件
+    configForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        // 获取表单数据
+        const doubaoApiKey = document.getElementById('doubaoApiKey').value;
+        const notionApiToken = document.getElementById('notionApiToken').value;
+        const notionDatabaseId = document.getElementById('notionDatabaseId').value;
+        
+        // 保存配置
+        config = {
+            doubaoApiKey,
+            notionApiToken,
+            notionDatabaseId
+        };
+        
+        // 保存到localStorage
+        localStorage.setItem('aiLearningAssistantConfig', JSON.stringify(config));
+        
+        // 隐藏配置弹窗
+        configModal.style.display = 'none';
+        
+        // 初始化应用
+        await initializeApp();
+    });
+}
+
+// 初始化应用
+async function initializeApp() {
+    // 添加事件监听器
     sendBtn.addEventListener('click', sendMessage);
     userInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
@@ -121,7 +168,7 @@ async function getNextQuestion() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${DOUBAO_API_KEY}`
+            'Authorization': `Bearer ${config.doubaoApiKey}`
         },
         body: JSON.stringify({
             model: 'doubao-pro',
@@ -153,7 +200,7 @@ async function generateCoursesWithDoubao() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${DOUBAO_API_KEY}`
+            'Authorization': `Bearer ${config.doubaoApiKey}`
         },
         body: JSON.stringify({
             model: 'doubao-pro',
@@ -256,13 +303,13 @@ async function createNotionPage(course) {
     const response = await fetch(NOTION_API_URL, {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${NOTION_API_TOKEN}`,
+            'Authorization': `Bearer ${config.notionApiToken}`,
             'Content-Type': 'application/json',
             'Notion-Version': '2022-06-28'
         },
         body: JSON.stringify({
             parent: {
-                database_id: NOTION_DATABASE_ID
+                database_id: config.notionDatabaseId
             },
             properties: {
                 'Name': {
