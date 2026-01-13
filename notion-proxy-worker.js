@@ -63,7 +63,7 @@ async function handlePost(request) {
               database_id: notionDatabaseId
             },
             properties: {
-              'Name': {
+              '课程名称': {
                 title: [
                   {
                     text: {
@@ -72,37 +72,41 @@ async function handlePost(request) {
                   }
                 ]
               },
-              'Description': {
+              '简介': {
                 rich_text: [
                   {
                     text: {
-                      content: course.description
+                      content: course.description || ''
                     }
                   }
                 ]
               },
-              'Status': {
+              '状态': {
                 select: {
                   name: '待学习'
                 }
               },
-              'Target Audience': {
+              '所属模块': {
+                multi_select: []
+              },
+              '难度': {
+                select: {
+                  name: '初级'
+                }
+              },
+              '章节列表': {
                 rich_text: [
                   {
                     text: {
-                      content: course.targetAudience || ''
+                      content: ''
                     }
                   }
                 ]
               },
-              'Duration': {
-                rich_text: [
-                  {
-                    text: {
-                      content: course.duration || ''
-                    }
-                  }
-                ]
+              '创建时间': {
+                date: {
+                  start: new Date().toISOString()
+                }
               }
             }
           })
@@ -114,7 +118,14 @@ async function handlePost(request) {
           successCount++;
           results.push({ success: true, course: course.title, notionId: notionResult.id });
         } else {
-          results.push({ success: false, course: course.title, error: notionResult.error });
+          //results.push({ success: false, course: course.title, error: notionResult.error });
+          results.push({ 
+            success: false, 
+            course: course.title, 
+            error: notionResult, // 显示完整的错误对象
+            status: notionResponse.status,
+            statusText: notionResponse.statusText
+        });
         }
       } catch (error) {
         results.push({ success: false, course: course.title, error: error.message });

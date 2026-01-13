@@ -24,19 +24,85 @@ const mockResponses = {
                 "title": "编程基础入门",
                 "description": "适合初学者的编程基础课程，涵盖核心概念和基本技能。",
                 "targetAudience": "零基础学习者",
-                "duration": "20小时"
+                "duration": "20小时",
+                "chapters": [
+                    {
+                        "title": "编程概念入门",
+                        "description": "了解基本编程术语和概念，建立编程思维框架。",
+                        "duration": "4小时"
+                    },
+                    {
+                        "title": "变量与数据类型",
+                        "description": "学习变量定义和各种数据类型的使用方法。",
+                        "duration": "5小时"
+                    },
+                    {
+                        "title": "控制流语句",
+                        "description": "掌握条件判断和循环语句的使用。",
+                        "duration": "6小时"
+                    },
+                    {
+                        "title": "函数基础",
+                        "description": "学习函数的定义、调用和参数传递。",
+                        "duration": "5小时"
+                    }
+                ]
             },
             {
                 "title": "编程进阶实战",
                 "description": "通过实际项目学习编程进阶知识，提升实战能力。",
                 "targetAudience": "有基础的学习者",
-                "duration": "30小时"
+                "duration": "30小时",
+                "chapters": [
+                    {
+                        "title": "面向对象编程",
+                        "description": "学习面向对象编程的核心概念：类、对象、继承、多态。",
+                        "duration": "8小时"
+                    },
+                    {
+                        "title": "数据结构基础",
+                        "description": "掌握数组、链表、栈、队列等基本数据结构。",
+                        "duration": "7小时"
+                    },
+                    {
+                        "title": "算法入门",
+                        "description": "学习常见算法：排序、查找、递归等。",
+                        "duration": "8小时"
+                    },
+                    {
+                        "title": "项目实战：简易应用开发",
+                        "description": "通过实际项目练习，综合运用所学知识。",
+                        "duration": "7小时"
+                    }
+                ]
             },
             {
                 "title": "编程高级技巧",
                 "description": "深入学习编程高级概念和最佳实践，成为专家。",
                 "targetAudience": "有经验的开发者",
-                "duration": "40小时"
+                "duration": "40小时",
+                "chapters": [
+                    {
+                        "title": "设计模式",
+                        "description": "学习常见设计模式及其应用场景。",
+                        "duration": "10小时"
+                    },
+                    {
+                        "title": "性能优化",
+                        "description": "掌握代码性能优化的方法和技巧。",
+                        "duration": "10小时"
+                    },
+                    {
+                        "title": "微服务架构",
+                        "description": "了解微服务架构设计和实现。",
+                        "duration": "10小时"
+                    },
+                    {
+                        "title": "高级项目实战",
+                        "description": "开发复杂应用，锻炼综合能力。",
+                        "duration": "10小时"
+                    }
+                ]
             }
         ]
     }
@@ -401,13 +467,54 @@ function displayCourses() {
     courses.forEach((course, index) => {
         const courseItem = document.createElement('div');
         courseItem.className = 'course-item';
+        
+        // 生成章节HTML
+        let chaptersHtml = '';
+        if (course.chapters && course.chapters.length > 0) {
+            chaptersHtml = `
+                <div class="chapters-section">
+                    <button class="toggle-chapters-btn">📋 查看章节 (${course.chapters.length})</button>
+                    <div class="chapters-list" style="display: none;">
+                        <h4>章节列表：</h4>
+                        <ul>
+                            ${course.chapters.map((chapter, chapIndex) => `
+                                <li class="chapter-item">
+                                    <h5>${chapIndex + 1}. ${chapter.title}</h5>
+                                    <p>${chapter.description}</p>
+                                    <p><small>预计时长：${chapter.duration}</small></p>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                </div>
+            `;
+        }
+        
         courseItem.innerHTML = `
             <h3>${index + 1}. ${course.title}</h3>
             <p><strong>描述：</strong>${course.description}</p>
             <p><strong>适合人群：</strong>${course.targetAudience}</p>
             <p><strong>预计时长：</strong>${course.duration}</p>
+            ${chaptersHtml}
         `;
+        
         coursesList.appendChild(courseItem);
+    });
+    
+    // 添加折叠/展开功能
+    document.querySelectorAll('.toggle-chapters-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const chaptersList = btn.nextElementSibling;
+            const isVisible = chaptersList.style.display === 'block';
+            
+            if (isVisible) {
+                chaptersList.style.display = 'none';
+                btn.textContent = `📋 查看章节 (${chaptersList.querySelectorAll('.chapter-item').length})`;
+            } else {
+                chaptersList.style.display = 'block';
+                btn.textContent = '📋 隐藏章节';
+            }
+        });
     });
     
     courseContainer.style.display = 'block';

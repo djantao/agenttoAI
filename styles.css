@@ -179,6 +179,74 @@ button:disabled {
     font-size: 0.95rem;
 }
 
+/* 章节部分样式 */
+.chapters-section {
+    margin-top: 15px;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 15px;
+}
+
+.toggle-chapters-btn {
+    background: #4299e1;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+    transition: background-color 0.2s;
+}
+
+.toggle-chapters-btn:hover {
+    background: #3182ce;
+}
+
+.chapters-list {
+    background: #f7fafc;
+    padding: 15px;
+    border-radius: 6px;
+    margin-top: 10px;
+}
+
+.chapters-list h4 {
+    color: #2d3748;
+    margin-bottom: 12px;
+    font-size: 1.1rem;
+}
+
+.chapters-list ul {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+}
+
+.chapter-item {
+    background: white;
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    border-left: 3px solid #63b3ed;
+}
+
+.chapter-item h5 {
+    color: #2d3748;
+    margin-bottom: 6px;
+    font-size: 1rem;
+}
+
+.chapter-item p {
+    color: #718096;
+    font-size: 0.9rem;
+    margin-bottom: 4px;
+}
+
+.chapter-item p small {
+    color: #a0aec0;
+    font-size: 0.8rem;
+}
+
 .sync-btn {
     display: block;
     width: 200px;
