@@ -316,35 +316,16 @@ async function getNextQuestion() {
         });
         
         if (!response.ok) {
-            // 如果API调用失败，自动切换到模拟数据模式
-            useMockData = true;
-            console.log('切换到模拟数据模式');
-            
-            // 返回模拟数据
-            if (currentQuestion === 1) {
-                return mockResponses.question2;
-            } else if (currentQuestion === 2) {
-                return mockResponses.question3;
-            }
+            // API调用失败，抛出错误，由上层处理
+            const errorData = await response.json().catch(() => ({ message: 'API请求失败' }));
+            throw new Error(`API请求失败: ${response.status} ${response.statusText} - ${errorData.message || '未知错误'}`);
         }
         
         const data = await response.json();
         return data.choices[0].message.content;
     } catch (error) {
         console.error('豆包API请求失败:', error);
-        
-        // 如果API调用失败，自动切换到模拟数据模式
-        useMockData = true;
-        console.log('切换到模拟数据模式');
-        
-        // 返回模拟数据
-        if (currentQuestion === 1) {
-            return mockResponses.question2;
-        } else if (currentQuestion === 2) {
-            return mockResponses.question3;
-        }
-        
-        throw error;
+        throw error; // 抛出错误，由上层处理
     }
 }
 
@@ -393,23 +374,9 @@ async function generateCoursesWithDoubao() {
         });
         
         if (!response.ok) {
-            // 如果API调用失败，自动切换到模拟数据模式
-            useMockData = true;
-            console.log('切换到模拟数据模式');
-            
-            // 移除正在生成的消息
-            chatMessages.removeChild(chatMessages.lastChild);
-            
-            // 使用模拟课程数据
-            courses = mockResponses.courses.courses;
-            
-            // 显示生成结果
-            addMessage('根据您的回答，我为您生成了以下课程列表：', 'bot');
-            conversation.push({ role: 'bot', content: '根据您的回答，我为您生成了以下课程列表：' });
-            
-            // 显示课程容器
-            displayCourses();
-            return;
+            // API调用失败，抛出错误，由上层处理
+            const errorData = await response.json().catch(() => ({ message: 'API请求失败' }));
+            throw new Error(`API请求失败: ${response.status} ${response.statusText} - ${errorData.message || '未知错误'}`);
         }
         
         const data = await response.json();
@@ -444,19 +411,12 @@ async function generateCoursesWithDoubao() {
         chatMessages.removeChild(chatMessages.lastChild);
         console.error('豆包API请求失败:', error);
         
-        // 如果API调用失败，自动切换到模拟数据模式
-        useMockData = true;
-        console.log('切换到模拟数据模式');
-        
-        // 使用模拟课程数据
-        courses = mockResponses.courses.courses;
-        
-        // 显示生成结果
-        addMessage('根据您的回答，我为您生成了以下课程列表：', 'bot');
-        conversation.push({ role: 'bot', content: '根据您的回答，我为您生成了以下课程列表：' });
-        
-        // 显示课程容器
-        displayCourses();
+        // 显示错误信息，不使用模拟数据
+        let errorMessage = '抱歉，生成课程列表失败。';
+        if (error.message) {
+            errorMessage += ` ${error.message}`;
+        }
+        addMessage(errorMessage, 'bot');
     }
 }
 
