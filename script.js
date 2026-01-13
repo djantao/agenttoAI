@@ -8,7 +8,7 @@ let useMockData = false; // 添加模拟数据开关
 // 配置变量 - 添加默认的豆包API地址和模型名称
 let config = {
     doubaoApiUrl: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions', // 火山引擎豆包API默认地址
-    doubaoModel: 'doubao-lite', // 默认使用doubao-lite模型
+    doubaoModel: 'doubao-1-5-pro-32k-250115', // 使用用户开通的新模型
     doubaoApiKey: '',
     notionApiToken: '',
     notionDatabaseId: ''
