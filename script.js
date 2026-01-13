@@ -212,7 +212,7 @@ function displayInitialQuestion() {
     // 从prompt1.txt中提取示例问题
     const initialQuestion = prompts.prompt1.split('提问示例：')[1] || '您好！我是您的AI学习助手。为了给您推荐合适的课程，请回答我几个问题。\n问题 1/3：您想学习什么领域的知识？（例如：编程、设计、数据分析等）';
     addMessage(initialQuestion, 'bot');
-    conversation.push({ role: 'bot', content: initialQuestion });
+    conversation.push({ role: 'assistant', content: initialQuestion });
 }
 
 // 发送消息
@@ -234,7 +234,7 @@ async function sendMessage() {
             // 调用豆包API获取下一个问题
             const nextQuestion = await getNextQuestion();
             addMessage(nextQuestion, 'bot');
-            conversation.push({ role: 'bot', content: nextQuestion });
+            conversation.push({ role: 'assistant', content: nextQuestion });
             currentQuestion++;
         } else {
             // 调用豆包API生成课程列表
@@ -409,7 +409,7 @@ async function generateCoursesWithDoubao() {
                 
                 // 显示生成结果
                 addMessage('根据您的回答，我为您生成了以下课程列表：', 'bot');
-                conversation.push({ role: 'bot', content: '根据您的回答，我为您生成了以下课程列表：' });
+                conversation.push({ role: 'assistant', content: '根据您的回答，我为您生成了以下课程列表：' });
                 
                 // 显示课程容器
                 displayCourses();
