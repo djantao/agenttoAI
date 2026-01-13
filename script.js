@@ -4,9 +4,9 @@ let conversation = [];
 let courses = [];
 let prompts = {};
 
-// 配置变量
+// 配置变量 - 添加默认的豆包API地址
 let config = {
-    doubaoApiUrl: '',
+    doubaoApiUrl: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions', // 火山引擎豆包API默认地址
     doubaoApiKey: '',
     notionApiToken: '',
     notionDatabaseId: ''
