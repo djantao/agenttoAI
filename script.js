@@ -151,16 +151,23 @@ async function sendMessage() {
         
         // 根据错误类型提供更具体的提示
         if (error.message.includes('Failed to fetch')) {
-            errorMessage = '网络连接失败，请检查您的网络设置或API地址是否正确。';
+            // 检查是否是CORS错误
+            if (error.message.includes('CORS')) {
+                errorMessage = '跨域请求被阻止(CORS)，请检查API地址是否支持跨域访问，或使用代理服务。';
+            } else {
+                errorMessage = '网络连接失败，请检查您的网络设置或API地址是否正确。';
+            }
         } else if (error.message.includes('401')) {
-            errorMessage = 'API密钥无效，请检查您的配置。';
+            errorMessage = 'API密钥无效，请检查您是否使用了正确的豆包API密钥，而不是Notion或其他服务的密钥。';
         } else if (error.message.includes('404')) {
             // 区分API地址错误和模型不存在错误
             if (error.message.includes('InvalidEndpointOrModel')) {
-                errorMessage = '模型名称无效或无访问权限，请检查模型配置。\n建议尝试的模型名称：doubao-12b, doubao-72b, doubao-lite';
+                errorMessage = '模型名称无效或无访问权限，请检查模型配置。\n建议尝试的模型名称：doubao-lite, doubao-pro, doubao-1.8';
             } else {
                 errorMessage = 'API地址无效，请检查您的配置。';
             }
+        } else if (error.message.includes('AuthenticationError')) {
+            errorMessage = '认证失败，请确保您使用了正确的豆包API密钥，而不是Notion或其他服务的密钥。';
         }
         
         addMessage(errorMessage, 'bot');
