@@ -424,8 +424,9 @@ async function syncCoursesToNotion() {
     // 1. 将notion-proxy-worker.js部署到Cloudflare Workers
     // 2. 获取部署后的Worker URL
     // 3. 将此处的URL替换为您的Worker URL
-    const NOTION_PROXY_URL = 'https://notion-proxy.your-account.workers.dev';
-    
+    //const NOTION_PROXY_URL = 'https://notion-proxy.your-account.workers.dev';
+    const NOTION_PROXY_URL = 'https://notion-proxy.timbabys80.workers.dev';
+
     try {
         // 发送请求到Cloudflare Worker代理
         const response = await fetch(NOTION_PROXY_URL, {
