@@ -413,29 +413,51 @@ function displayCourses() {
     courseContainer.style.display = 'block';
 }
 
-// 同步课程到Notion
+// 同步课程到Notion（使用Cloudflare Worker代理）
 async function syncCoursesToNotion() {
     syncToNotionBtn.disabled = true;
     syncToNotionBtn.innerHTML = '<span class="loading"></span> 同步中...';
     syncToNotionBtn.className = 'sync-btn';
     
+    // Cloudflare Worker代理URL（部署后替换为您的Worker URL）
+    // 部署说明：
+    // 1. 将notion-proxy-worker.js部署到Cloudflare Workers
+    // 2. 获取部署后的Worker URL
+    // 3. 将此处的URL替换为您的Worker URL
+    const NOTION_PROXY_URL = 'https://notion-proxy.your-account.workers.dev';
+    
     try {
-        // 遍历课程列表，逐个同步到Notion
-        for (const course of courses) {
-            await createNotionPage(course);
+        // 发送请求到Cloudflare Worker代理
+        const response = await fetch(NOTION_PROXY_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                courses: courses,
+                notionApiToken: config.notionApiToken,
+                notionDatabaseId: config.notionDatabaseId
+            })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: '同步失败' }));
+            throw new Error(`同步失败：${errorData.error || '未知错误'}`);
         }
         
+        const result = await response.json();
+        
         // 显示成功消息
-        syncToNotionBtn.innerHTML = '同步成功';
+        syncToNotionBtn.innerHTML = `同步成功 (${result.successCount}/${result.total})`;
         syncToNotionBtn.className = 'sync-btn success';
         
         // 添加聊天消息
-        addMessage('课程列表已成功同步到Notion！', 'bot');
+        addMessage(`课程列表已成功同步到Notion！共同步${result.successCount}门课程，总计${result.total}门课程。`, 'bot');
     } catch (error) {
         console.error('同步到Notion失败:', error);
         syncToNotionBtn.innerHTML = '同步失败';
         syncToNotionBtn.className = 'sync-btn error';
-        addMessage('抱歉，同步到Notion失败，请稍后重试。', 'bot');
+        addMessage(`抱歉，同步到Notion失败：${error.message}`, 'bot');
     } finally {
         // 3秒后恢复按钮状态
         setTimeout(() => {
@@ -446,63 +468,22 @@ async function syncCoursesToNotion() {
     }
 }
 
-// 创建Notion页面
-async function createNotionPage(course) {
-    try {
-        const response = await fetch(NOTION_API_URL, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${config.notionApiToken}`,
-                'Content-Type': 'application/json',
-                'Notion-Version': '2022-06-28'
-            },
-            body: JSON.stringify({
-                parent: {
-                    database_id: config.notionDatabaseId
-                },
-                properties: {
-                    'Name': {
-                        title: [
-                            {
-                                text: {
-                                    content: course.title
-                                }
-                            }
-                        ]
-                    },
-                    'Description': {
-                        rich_text: [
-                            {
-                                text: {
-                                    content: course.description
-                                }
-                            }
-                        ]
-                    },
-                    'Status': {
-                        select: {
-                            name: '待学习'
-                        }
-                    }
-                }
-            })
-        });
-        
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: '未知错误' }));
-            throw new Error(`Notion API错误: ${response.status} ${response.statusText} - ${errorData.code || ''} ${errorData.message || ''}`);
-        }
-        
-        return await response.json();
-    } catch (error) {
-        if (error.message.includes('Failed to fetch')) {
-            // 检查是否是CORS错误
-            throw new Error(`Notion API请求失败：跨域请求被阻止(CORS)。Notion API不支持直接从浏览器调用，建议使用服务器代理或后端服务来转发请求。`);
-        } else {
-            throw error;
-        }
-    }
-}
+/*
+Cloudflare Worker部署说明：
+1. 登录Cloudflare控制台
+2. 选择Workers & Pages
+3. 创建一个新的Worker
+4. 将notion-proxy-worker.js脚本粘贴到编辑器中
+5. 修改ALLOWED_ORIGINS数组，添加您的GitHub Pages域名
+6. 点击"部署"按钮
+7. 部署后，获取Worker的URL
+8. 将syncCoursesToNotion函数中的NOTION_PROXY_URL替换为您的Worker URL
+
+注意事项：
+- 确保Notion API Token具有对目标数据库的写入权限
+- 确保Notion数据库包含所需的属性（Name, Description, Status, Target Audience, Duration）
+- 首次使用前，需要在Notion中邀请您的Integration访问目标数据库
+*/
 
 // 页面加载完成后初始化
 window.addEventListener('DOMContentLoaded', init);
