@@ -44,6 +44,36 @@ function formatChapters(chapters) {
     return chaptersText;
 }
 
+// 根据课程内容自动生成所属模块标签
+function generateModule(course) {
+    if (!course) return [];
+    
+    const courseContent = (course.title || '') + ' ' + (course.description || '');
+    const lowerContent = courseContent.toLowerCase();
+    
+    // 定义常见领域关键词
+    const domainKeywords = [
+        { name: '财务', keywords: ['财务', '会计', '报表', '记账', '金融'] },
+        { name: 'Spark', keywords: ['spark', '大数据', '分布式'] },
+        { name: 'Python', keywords: ['python', '编程', '代码'] },
+        { name: '设计', keywords: ['设计', 'ui', 'ux', '平面', '视觉'] },
+        { name: '数据分析', keywords: ['数据分析', '数据', '统计', '分析'] },
+        { name: '英语', keywords: ['英语', '语言', '词汇', '语法'] }
+    ];
+    
+    // 匹配领域关键词
+    for (const domain of domainKeywords) {
+        for (const keyword of domain.keywords) {
+            if (lowerContent.includes(keyword)) {
+                return [domain.name];
+            }
+        }
+    }
+    
+    // 如果没有匹配到，默认返回"通用"标签
+    return ['通用'];
+}
+
 // 处理POST请求
 async function handlePost(request) {
     const origin = request.headers.get('Origin');
@@ -126,6 +156,9 @@ async function handlePost(request) {
                     name: '初级'
                   }
                 },
+                '所属模块': {
+                  multi_select: generateModule(course).map(module => ({ name: module }))
+                },
                 '章节列表': {
                   rich_text: [
                     {
@@ -197,7 +230,7 @@ async function handlePost(request) {
                   }
                 },
                 '所属模块': {
-                  multi_select: []
+                  multi_select: generateModule(course).map(module => ({ name: module }))
                 },
                 '难度': {
                   select: {
