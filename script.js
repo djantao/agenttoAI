@@ -387,36 +387,50 @@ async function generateCoursesWithDoubao() {
         
         // 解析生成的课程列表
         try {
-            // 改进的JSON提取逻辑：寻找完整的JSON对象
-            // 首先尝试找到包含"courses"数组的JSON对象
-            // 从字符串末尾开始查找，因为JSON通常在最后
-            let jsonStart = botResponse.lastIndexOf('{');
-            let jsonEnd = botResponse.lastIndexOf('}');
+            // 首先尝试JSON解析
+            let coursesData = null;
             
-            // 如果找不到，尝试其他方法
-            if (jsonStart === -1 || jsonEnd === -1 || jsonStart > jsonEnd) {
-                // 尝试匹配包含"courses"的JSON结构
+            // 尝试1: 寻找完整的JSON对象
+            try {
+                // 从字符串末尾开始查找JSON，因为JSON通常在最后
+                let jsonStart = botResponse.lastIndexOf('{');
+                let jsonEnd = botResponse.lastIndexOf('}');
+                
+                if (jsonStart !== -1 && jsonEnd !== -1 && jsonStart < jsonEnd) {
+                    let jsonStr = botResponse.substring(jsonStart, jsonEnd + 1);
+                    
+                    // 循环尝试解析，直到成功或无法再缩小范围
+                    let parseAttempts = 0;
+                    const maxAttempts = 5;
+                    
+                    while (parseAttempts < maxAttempts) {
+                        try {
+                            coursesData = JSON.parse(jsonStr);
+                            if (coursesData.courses && Array.isArray(coursesData.courses)) {
+                                processCourseData(coursesData);
+                                return;
+                            }
+                        } catch (e) {
+                            // 缩小JSON范围，去掉前面可能的无效内容
+                            const newStart = jsonStr.indexOf('{', 1);
+                            if (newStart === -1) break;
+                            jsonStr = jsonStr.substring(newStart);
+                            parseAttempts++;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('JSON解析尝试1失败:', e);
+            }
+            
+            // 尝试2: 匹配包含"courses"的JSON结构
+            try {
                 const jsonRegex = /\{[\s\S]*"courses"[\s\S]*\}/g;
                 const jsonMatches = botResponse.match(jsonRegex);
                 if (jsonMatches && jsonMatches.length > 0) {
-                    // 取最后一个匹配
-                    const jsonMatch = jsonMatches[jsonMatches.length - 1];
-                    try {
-                        const coursesData = JSON.parse(jsonMatch);
-                        processCourseData(coursesData);
-                        return;
-                    } catch (e) {
-                        console.error('解析匹配到的JSON失败:', e);
-                    }
-                }
-                
-                // 如果还是失败，尝试更简单的方法：提取所有可能的JSON并逐个尝试
-                const allJsonRegex = /\{[^{}]*\{[^{}]*\}[^{}]*\}/g;
-                const allJsonMatches = botResponse.match(allJsonRegex);
-                if (allJsonMatches) {
-                    for (const jsonStr of allJsonMatches) {
+                    for (const jsonMatch of jsonMatches) {
                         try {
-                            const coursesData = JSON.parse(jsonStr);
+                            coursesData = JSON.parse(jsonMatch);
                             if (coursesData.courses && Array.isArray(coursesData.courses)) {
                                 processCourseData(coursesData);
                                 return;
@@ -427,40 +441,111 @@ async function generateCoursesWithDoubao() {
                         }
                     }
                 }
-                
-                throw new Error('无法提取有效的课程JSON数据');
+            } catch (e) {
+                console.error('JSON解析尝试2失败:', e);
             }
             
-            // 尝试从找到的位置提取JSON
-            let jsonStr = botResponse.substring(jsonStart, jsonEnd + 1);
-            
-            // 循环尝试解析，直到成功或无法再缩小范围
-            let parseAttempts = 0;
-            const maxAttempts = 5;
-            
-            while (parseAttempts < maxAttempts) {
-                try {
-                    const coursesData = JSON.parse(jsonStr);
-                    if (coursesData.courses && Array.isArray(coursesData.courses)) {
-                        processCourseData(coursesData);
-                        return;
-                    }
-                    throw new Error('JSON中没有courses数组');
-                } catch (e) {
-                    parseAttempts++;
-                    // 缩小JSON范围，去掉前面可能的无效内容
-                    jsonStart = jsonStr.indexOf('{', 1);
-                    if (jsonStart === -1) break;
-                    jsonStr = jsonStr.substring(jsonStart);
+            // 尝试3: 从表格中提取数据
+            try {
+                console.log('尝试从表格中提取课程数据...');
+                const tableData = extractCoursesFromTable(botResponse);
+                if (tableData && tableData.length > 0) {
+                    // 转换为原有格式
+                    courses = tableData.map((course, index) => ({
+                        title: course.courseName,
+                        description: course.courseDescription,
+                        targetAudience: course.difficulty,
+                        duration: '未知',
+                        chapters: course.chapters
+                    }));
+                    
+                    // 显示生成结果
+                    addMessage('根据您的回答，我为您生成了以下课程列表：', 'bot');
+                    conversation.push({ role: 'assistant', content: '根据您的回答，我为您生成了以下课程列表：' });
+                    
+                    // 显示课程容器
+                    displayCourses();
+                    return;
                 }
+            } catch (e) {
+                console.error('表格解析失败:', e);
             }
             
-            throw new Error('无法解析有效的课程JSON数据');
+            // 所有尝试都失败
+            throw new Error('无法提取有效的课程数据');
             
         } catch (parseError) {
             console.error('解析课程数据失败:', parseError);
             console.log('原始响应:', botResponse);
             addMessage('抱歉，生成课程列表失败，请稍后重试。', 'bot');
+        }
+        
+        // 从表格中提取课程数据的辅助函数
+        function extractCoursesFromTable(response) {
+            // 查找表格部分
+            const tableStart = response.indexOf('| 序号 |');
+            if (tableStart === -1) return null;
+            
+            // 提取表格内容
+            const tableContent = response.substring(tableStart);
+            const lines = tableContent.split('\n');
+            
+            // 跳过表头和分隔线
+            let courses = [];
+            for (let i = 3; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line || !line.startsWith('|')) continue;
+                
+                // 分割列
+                const columns = line.split('|').map(col => col.trim()).filter(col => col);
+                if (columns.length < 6) continue;
+                
+                // 提取课程信息
+                const serialNumber = parseInt(columns[0]);
+                const courseName = columns[1];
+                const courseDescription = columns[2];
+                const difficulty = columns[3];
+                const module = columns[4];
+                const chaptersStr = columns[5];
+                
+                // 解析章节
+                const chapters = [];
+                if (chaptersStr) {
+                    const chapterLines = chaptersStr.split('<br>');
+                    for (const chapterLine of chapterLines) {
+                        const chapterMatch = chapterLine.match(/^(\d+)\.\s*(.+?)\s*：\s*(.+)$/);
+                        if (chapterMatch) {
+                            chapters.push({
+                                title: chapterMatch[2],
+                                description: chapterMatch[3],
+                                duration: '未知'
+                            });
+                        } else if (chapterLine.trim()) {
+                            // 如果格式不匹配，尝试简单分割
+                            const parts = chapterLine.split('：');
+                            if (parts.length >= 2) {
+                                chapters.push({
+                                    title: parts[0].replace(/^\d+\.\s*/, ''),
+                                    description: parts[1],
+                                    duration: '未知'
+                                });
+                            }
+                        }
+                    }
+                }
+                
+                // 添加到课程列表
+                courses.push({
+                    serialNumber,
+                    courseName,
+                    courseDescription,
+                    difficulty,
+                    module,
+                    chapters
+                });
+            }
+            
+            return courses;
         }
         
         // 处理课程数据的辅助函数
