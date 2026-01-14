@@ -387,23 +387,24 @@ async function generateCoursesWithDoubao() {
         
         // 解析生成的课程列表
         try {
+            console.log('开始解析课程数据...');
+            
             // 首先尝试JSON解析
             let coursesData = null;
             
-            // 尝试1: 寻找完整的JSON对象
+            // 尝试1: 精确查找JSON格式部分（从【JSON格式】标记开始）
             try {
-                // 从字符串末尾开始查找JSON，因为JSON通常在最后
-                let jsonStart = botResponse.lastIndexOf('{');
-                let jsonEnd = botResponse.lastIndexOf('}');
-                
-                if (jsonStart !== -1 && jsonEnd !== -1 && jsonStart < jsonEnd) {
-                    let jsonStr = botResponse.substring(jsonStart, jsonEnd + 1);
+                console.log('尝试1: 精确查找JSON格式部分');
+                const jsonFormatStart = botResponse.indexOf('【JSON格式】');
+                if (jsonFormatStart !== -1) {
+                    // 从JSON格式标记后开始查找第一个{和最后一个}
+                    const jsonStart = botResponse.indexOf('{', jsonFormatStart);
+                    const jsonEnd = botResponse.lastIndexOf('}');
                     
-                    // 循环尝试解析，直到成功或无法再缩小范围
-                    let parseAttempts = 0;
-                    const maxAttempts = 5;
-                    
-                    while (parseAttempts < maxAttempts) {
+                    if (jsonStart !== -1 && jsonEnd !== -1 && jsonStart < jsonEnd) {
+                        let jsonStr = botResponse.substring(jsonStart, jsonEnd + 1);
+                        
+                        // 尝试直接解析
                         try {
                             coursesData = JSON.parse(jsonStr);
                             if (coursesData.courses && Array.isArray(coursesData.courses)) {
@@ -411,11 +412,25 @@ async function generateCoursesWithDoubao() {
                                 return;
                             }
                         } catch (e) {
-                            // 缩小JSON范围，去掉前面可能的无效内容
-                            const newStart = jsonStr.indexOf('{', 1);
-                            if (newStart === -1) break;
-                            jsonStr = jsonStr.substring(newStart);
-                            parseAttempts++;
+                            console.error('直接解析JSON失败，尝试修复...');
+                            
+                            // 尝试修复JSON，处理可能的截断问题
+                            // 查找所有可能的JSON对象
+                            const jsonRegex = /\{[^{}]*\{[^{}]*\}[^{}]*\}/g;
+                            const jsonMatches = jsonStr.match(jsonRegex);
+                            if (jsonMatches) {
+                                for (const match of jsonMatches) {
+                                    try {
+                                        coursesData = JSON.parse(match);
+                                        if (coursesData.courses && Array.isArray(coursesData.courses)) {
+                                            processCourseData(coursesData);
+                                            return;
+                                        }
+                                    } catch (innerE) {
+                                        continue;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -423,20 +438,22 @@ async function generateCoursesWithDoubao() {
                 console.error('JSON解析尝试1失败:', e);
             }
             
-            // 尝试2: 匹配包含"courses"的JSON结构
+            // 尝试2: 匹配包含"courses"的JSON结构，更宽松的匹配
             try {
-                const jsonRegex = /\{[\s\S]*"courses"[\s\S]*\}/g;
+                console.log('尝试2: 匹配包含"courses"的JSON结构');
+                const jsonRegex = /"courses"\s*:\s*\[[\s\S]*?\]/g;
                 const jsonMatches = botResponse.match(jsonRegex);
                 if (jsonMatches && jsonMatches.length > 0) {
-                    for (const jsonMatch of jsonMatches) {
+                    for (const match of jsonMatches) {
+                        // 构建完整的JSON对象
+                        const fullJsonStr = `{"courses": ${match.substring(match.indexOf('['))}}`;
                         try {
-                            coursesData = JSON.parse(jsonMatch);
+                            coursesData = JSON.parse(fullJsonStr);
                             if (coursesData.courses && Array.isArray(coursesData.courses)) {
                                 processCourseData(coursesData);
                                 return;
                             }
-                        } catch (e) {
-                            // 继续尝试下一个
+                        } catch (innerE) {
                             continue;
                         }
                     }
@@ -445,13 +462,14 @@ async function generateCoursesWithDoubao() {
                 console.error('JSON解析尝试2失败:', e);
             }
             
-            // 尝试3: 从表格中提取数据
+            // 尝试3: 从表格中提取数据，改进版
             try {
-                console.log('尝试从表格中提取课程数据...');
+                console.log('尝试3: 从表格中提取课程数据');
                 const tableData = extractCoursesFromTable(botResponse);
                 if (tableData && tableData.length > 0) {
+                    console.log('成功从表格中提取了', tableData.length, '门课程');
                     // 转换为原有格式
-                    courses = tableData.map((course, index) => ({
+                    courses = tableData.map((course) => ({
                         title: course.courseName,
                         description: course.courseDescription,
                         targetAudience: course.difficulty,
@@ -469,6 +487,7 @@ async function generateCoursesWithDoubao() {
                 }
             } catch (e) {
                 console.error('表格解析失败:', e);
+                console.error('表格解析错误详情:', e.stack);
             }
             
             // 所有尝试都失败
@@ -476,29 +495,53 @@ async function generateCoursesWithDoubao() {
             
         } catch (parseError) {
             console.error('解析课程数据失败:', parseError);
+            console.error('解析错误详情:', parseError.stack);
             console.log('原始响应:', botResponse);
             addMessage('抱歉，生成课程列表失败，请稍后重试。', 'bot');
         }
         
-        // 从表格中提取课程数据的辅助函数
+        // 从表格中提取课程数据的辅助函数（改进版）
         function extractCoursesFromTable(response) {
             // 查找表格部分
             const tableStart = response.indexOf('| 序号 |');
-            if (tableStart === -1) return null;
+            if (tableStart === -1) {
+                console.log('未找到表格开始标记');
+                return null;
+            }
             
-            // 提取表格内容
-            const tableContent = response.substring(tableStart);
-            const lines = tableContent.split('\n');
+            // 查找表格结束位置（在下一个标题或文件末尾）
+            const nextSectionStart = response.indexOf('【', tableStart + 1);
+            const tableEnd = nextSectionStart !== -1 ? nextSectionStart : response.length;
             
-            // 跳过表头和分隔线
+            // 提取完整表格内容
+            const tableContent = response.substring(tableStart, tableEnd);
+            
+            // 分割表格行，处理不同换行符
+            const lines = tableContent.split(/[\n\r]+/).filter(line => line.trim());
+            console.log('表格行数:', lines.length);
+            
+            if (lines.length < 4) { // 至少需要表头、分隔线、一行数据
+                console.log('表格行数不足，无法解析');
+                return null;
+            }
+            
+            // 跳过表头和分隔线，从第3行开始（索引2）
             let courses = [];
-            for (let i = 3; i < lines.length; i++) {
+            for (let i = 2; i < lines.length; i++) {
                 const line = lines[i].trim();
-                if (!line || !line.startsWith('|')) continue;
+                if (!line || !line.startsWith('|')) {
+                    console.log('跳过无效行:', line);
+                    continue;
+                }
                 
                 // 分割列
-                const columns = line.split('|').map(col => col.trim()).filter(col => col);
-                if (columns.length < 6) continue;
+                const columns = line.split('|').map(col => col.trim()).filter(col => col.length > 0);
+                console.log('行', i, '列数:', columns.length, '内容:', columns);
+                
+                if (columns.length < 6) {
+                    console.log('列数不足，跳过该行');
+                    continue;
+                }
                 
                 // 提取课程信息
                 const serialNumber = parseInt(columns[0]);
@@ -511,22 +554,30 @@ async function generateCoursesWithDoubao() {
                 // 解析章节
                 const chapters = [];
                 if (chaptersStr) {
-                    const chapterLines = chaptersStr.split('<br>');
+                    // 处理HTML换行符
+                    const chapterLines = chaptersStr.split(/<br>|\n/).filter(chap => chap.trim());
+                    console.log('章节行数:', chapterLines.length);
+                    
                     for (const chapterLine of chapterLines) {
-                        const chapterMatch = chapterLine.match(/^(\d+)\.\s*(.+?)\s*：\s*(.+)$/);
+                        const trimmedLine = chapterLine.trim();
+                        if (!trimmedLine) continue;
+                        
+                        // 尝试匹配章节格式：数字. 标题：核心目标
+                        const chapterMatch = trimmedLine.match(/^(\d+)\.\s*(.+?)\s*：\s*(.+)$/);
                         if (chapterMatch) {
                             chapters.push({
                                 title: chapterMatch[2],
                                 description: chapterMatch[3],
                                 duration: '未知'
                             });
-                        } else if (chapterLine.trim()) {
-                            // 如果格式不匹配，尝试简单分割
-                            const parts = chapterLine.split('：');
+                        } else {
+                            // 如果格式不匹配，尝试更宽松的匹配
+                            console.log('章节格式不匹配，尝试宽松匹配:', trimmedLine);
+                            const parts = trimmedLine.split('：');
                             if (parts.length >= 2) {
                                 chapters.push({
-                                    title: parts[0].replace(/^\d+\.\s*/, ''),
-                                    description: parts[1],
+                                    title: parts[0].replace(/^\d+\.\s*/, '').trim(),
+                                    description: parts[1].trim(),
                                     duration: '未知'
                                 });
                             }
@@ -545,6 +596,7 @@ async function generateCoursesWithDoubao() {
                 });
             }
             
+            console.log('成功解析课程数量:', courses.length);
             return courses;
         }
         
