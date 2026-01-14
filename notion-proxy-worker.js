@@ -46,10 +46,16 @@ function formatChapters(chapters) {
 
 // 根据课程内容自动生成所属模块标签
 function generateModule(course) {
-    if (!course) return [];
+    console.log('generateModule函数被调用，课程对象:', course);
+    if (!course) {
+        console.log('课程对象为空，返回空数组');
+        return [];
+    }
     
     const courseContent = (course.title || '') + ' ' + (course.description || '');
+    console.log('课程内容:', courseContent);
     const lowerContent = courseContent.toLowerCase();
+    console.log('小写课程内容:', lowerContent);
     
     // 定义常见领域关键词
     const domainKeywords = [
@@ -65,12 +71,14 @@ function generateModule(course) {
     for (const domain of domainKeywords) {
         for (const keyword of domain.keywords) {
             if (lowerContent.includes(keyword)) {
+                console.log('匹配到关键词:', keyword, '，返回领域:', domain.name);
                 return [domain.name];
             }
         }
     }
     
     // 如果没有匹配到，默认返回"通用"标签
+    console.log('没有匹配到关键词，返回通用标签');
     return ['通用'];
 }
 
