@@ -387,38 +387,103 @@ async function generateCoursesWithDoubao() {
         
         // 解析生成的课程列表
         try {
-            // 提取JSON部分（查找最后一个JSON对象，因为前面可能有表格格式）
-            const jsonMatches = botResponse.match(/\{[\s\S]*\}/g);
-            if (jsonMatches && jsonMatches.length > 0) {
-                // 取最后一个JSON对象，因为前面可能有表格格式
-                const jsonMatch = jsonMatches[jsonMatches.length - 1];
-                const coursesData = JSON.parse(jsonMatch);
+            // 改进的JSON提取逻辑：寻找完整的JSON对象
+            // 首先尝试找到包含"courses"数组的JSON对象
+            // 从字符串末尾开始查找，因为JSON通常在最后
+            let jsonStart = botResponse.lastIndexOf('{');
+            let jsonEnd = botResponse.lastIndexOf('}');
+            
+            // 如果找不到，尝试其他方法
+            if (jsonStart === -1 || jsonEnd === -1 || jsonStart > jsonEnd) {
+                // 尝试匹配包含"courses"的JSON结构
+                const jsonRegex = /\{[\s\S]*"courses"[\s\S]*\}/g;
+                const jsonMatches = botResponse.match(jsonRegex);
+                if (jsonMatches && jsonMatches.length > 0) {
+                    // 取最后一个匹配
+                    const jsonMatch = jsonMatches[jsonMatches.length - 1];
+                    try {
+                        const coursesData = JSON.parse(jsonMatch);
+                        processCourseData(coursesData);
+                        return;
+                    } catch (e) {
+                        console.error('解析匹配到的JSON失败:', e);
+                    }
+                }
                 
-                // 将新格式转换为原有格式，确保兼容性
-                courses = coursesData.courses.map(course => ({
-                    title: course.courseName,
-                    description: course.courseDescription,
-                    targetAudience: course.difficulty,
-                    duration: '未知', // 新格式中没有时长，暂时使用默认值
-                    chapters: course.chapters.map(chapter => ({
-                        title: chapter.title,
-                        description: chapter.coreObjective,
-                        duration: '未知' // 新格式中没有章节时长，暂时使用默认值
-                    }))
-                }));
+                // 如果还是失败，尝试更简单的方法：提取所有可能的JSON并逐个尝试
+                const allJsonRegex = /\{[^{}]*\{[^{}]*\}[^{}]*\}/g;
+                const allJsonMatches = botResponse.match(allJsonRegex);
+                if (allJsonMatches) {
+                    for (const jsonStr of allJsonMatches) {
+                        try {
+                            const coursesData = JSON.parse(jsonStr);
+                            if (coursesData.courses && Array.isArray(coursesData.courses)) {
+                                processCourseData(coursesData);
+                                return;
+                            }
+                        } catch (e) {
+                            // 继续尝试下一个
+                            continue;
+                        }
+                    }
+                }
                 
-                // 显示生成结果
-                addMessage('根据您的回答，我为您生成了以下课程列表：', 'bot');
-                conversation.push({ role: 'assistant', content: '根据您的回答，我为您生成了以下课程列表：' });
-                
-                // 显示课程容器
-                displayCourses();
-            } else {
-                throw new Error('无法提取JSON数据');
+                throw new Error('无法提取有效的课程JSON数据');
             }
+            
+            // 尝试从找到的位置提取JSON
+            let jsonStr = botResponse.substring(jsonStart, jsonEnd + 1);
+            
+            // 循环尝试解析，直到成功或无法再缩小范围
+            let parseAttempts = 0;
+            const maxAttempts = 5;
+            
+            while (parseAttempts < maxAttempts) {
+                try {
+                    const coursesData = JSON.parse(jsonStr);
+                    if (coursesData.courses && Array.isArray(coursesData.courses)) {
+                        processCourseData(coursesData);
+                        return;
+                    }
+                    throw new Error('JSON中没有courses数组');
+                } catch (e) {
+                    parseAttempts++;
+                    // 缩小JSON范围，去掉前面可能的无效内容
+                    jsonStart = jsonStr.indexOf('{', 1);
+                    if (jsonStart === -1) break;
+                    jsonStr = jsonStr.substring(jsonStart);
+                }
+            }
+            
+            throw new Error('无法解析有效的课程JSON数据');
+            
         } catch (parseError) {
             console.error('解析课程数据失败:', parseError);
+            console.log('原始响应:', botResponse);
             addMessage('抱歉，生成课程列表失败，请稍后重试。', 'bot');
+        }
+        
+        // 处理课程数据的辅助函数
+        function processCourseData(coursesData) {
+            // 将新格式转换为原有格式，确保兼容性
+            courses = coursesData.courses.map(course => ({
+                title: course.courseName || course.title || '未命名课程',
+                description: course.courseDescription || course.description || '暂无描述',
+                targetAudience: course.difficulty || course.targetAudience || '适合所有水平',
+                duration: course.duration || '未知',
+                chapters: (course.chapters || []).map(chapter => ({
+                    title: chapter.title || '未命名章节',
+                    description: chapter.coreObjective || chapter.description || '暂无描述',
+                    duration: chapter.duration || '未知'
+                }))
+            }));
+            
+            // 显示生成结果
+            addMessage('根据您的回答，我为您生成了以下课程列表：', 'bot');
+            conversation.push({ role: 'assistant', content: '根据您的回答，我为您生成了以下课程列表：' });
+            
+            // 显示课程容器
+            displayCourses();
         }
     } catch (error) {
         // 移除正在生成的消息
