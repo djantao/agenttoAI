@@ -753,6 +753,7 @@ async function syncCoursesToNotion() {
 }
 
 /*
+hhhhh
 Cloudflare Worker部署说明：
 1. 登录Cloudflare控制台
 2. 选择Workers & Pages
