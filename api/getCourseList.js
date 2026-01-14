@@ -2,17 +2,21 @@
 // 功能：调用Notion API拉取课程数据库的「课程名称」「章节列表」
 // 注意：该文件需部署在Vercel/Netlify的api目录下
 
-const fetch = require('node-fetch');
+// 使用平台提供的全局fetch
+// Serverless环境中通常已全局可用，无需额外导入
+const fetch = global.fetch;
 
 // 重试机制配置
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // 1秒
 
 // 等待函数
-const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 // 重试函数
-const retryFetch = async (url, options, retries = MAX_RETRIES) => {
+async function retryFetch(url, options, retries = MAX_RETRIES) {
   try {
     const response = await fetch(url, options);
     
@@ -44,6 +48,19 @@ const retryFetch = async (url, options, retries = MAX_RETRIES) => {
 // 主函数
 exports.handler = async (event, context) => {
   try {
+    // 处理CORS预检请求
+    if (event.httpMethod === 'OPTIONS') {
+      return {
+        statusCode: 200,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type'
+        },
+        body: JSON.stringify({ success: true })
+      };
+    }
+    
     // 从环境变量获取配置
     const NOTION_API_KEY = process.env.NOTION_API_KEY;
     const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID || '2e43af348d5780fd9b8ed286eba4c996';
@@ -159,16 +176,3 @@ exports.handler = async (event, context) => {
     };
   }
 };
-
-// 处理CORS预检请求
-if (event.httpMethod === 'OPTIONS') {
-  return {
-    statusCode: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
-    },
-    body: JSON.stringify({ success: true })
-  };
-}

@@ -47,54 +47,78 @@
         </header>
         
         <main>
-            <!-- 学习功能模块 -->
-            <div class="learning-container" id="learningContainer">
-                <h2>学习功能模块</h2>
+            <!-- Tab 导航栏 -->
+            <div class="tab-container">
+                <div class="tab-nav">
+                    <button class="tab-btn active" data-tab="course-generation">课程生成</button>
+                    <button class="tab-btn" data-tab="course-learning">课程学习</button>
+                </div>
                 
-                <div class="learning-controls">
-                    <div class="form-group">
-                        <label for="courseSelect">选择课程：</label>
-                        <select id="courseSelect" disabled>
-                            <option value="">请选择课程</option>
-                        </select>
+                <!-- Tab 内容区 -->
+                <div class="tab-content">
+                    <!-- 课程生成 Tab -->
+                    <div class="tab-panel active" id="course-generation">
+                        <div class="chat-container" id="chatContainer">
+                            <h2>课程生成对话</h2>
+                            <div class="chat-messages" id="chatMessages">
+                            </div>
+                            
+                            <div class="input-container">
+                                <input type="text" id="userInput" placeholder="请输入您的回答..." autocomplete="off">
+                                <button id="sendBtn">发送</button>
+                            </div>
+                        </div>
+                        
+                        <div class="course-container" id="courseContainer" style="display: none;">
+                            <h2>生成的课程列表</h2>
+                            <div class="courses" id="coursesList"></div>
+                            <button id="syncToNotion" class="sync-btn">同步到Notion</button>
+                        </div>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="chapterSelect">选择章节：</label>
-                        <select id="chapterSelect" disabled>
-                            <option value="">请选择章节</option>
-                        </select>
+                    <!-- 课程学习 Tab -->
+                    <div class="tab-panel" id="course-learning">
+                        <div class="learning-container" id="learningContainer">
+                            <h2>课程学习</h2>
+                            
+                            <!-- 断点续学提示 -->
+                            <div class="continue-learning-prompt" id="continueLearningPrompt" style="display: none;">
+                                <p>检测到您上次学习《<span id="lastCourseChapter"></span>》，是否继续？</p>
+                                <div class="prompt-actions">
+                                    <button id="continueBtn" class="continue-btn">继续学习</button>
+                                    <button id="restartBtn" class="restart-btn">重新开始</button>
+                                </div>
+                            </div>
+                            
+                            <div class="learning-controls">
+                                <div class="form-group">
+                                    <label for="courseSelect">选择课程：</label>
+                                    <select id="courseSelect" disabled>
+                                        <option value="">请选择课程</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="chapterSelect">选择章节：</label>
+                                    <select id="chapterSelect" disabled>
+                                        <option value="">请选择章节</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="learning-chat-container">
+                                <div class="chat-messages" id="learningChatMessages">
+                                </div>
+                                
+                                <div class="input-container">
+                                    <textarea id="learningInput" placeholder="请输入您的学习问题..." autocomplete="off" disabled rows="3"></textarea>
+                                    <button id="sendLearningBtn" disabled>发送</button>
+                                    <button id="stopLearningBtn" disabled>停止学习</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                
-                <div class="learning-chat-container">
-                    <div class="chat-messages" id="learningChatMessages">
-                    </div>
-                    
-                    <div class="input-container">
-                        <input type="text" id="learningInput" placeholder="请输入您的学习问题..." autocomplete="off" disabled>
-                        <button id="sendLearningBtn" disabled>发送</button>
-                        <button id="stopLearningBtn" disabled>停止学习</button>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- 原有对话容器 -->
-            <div class="chat-container" id="chatContainer">
-                <h2>课程生成对话</h2>
-                <div class="chat-messages" id="chatMessages">
-                </div>
-                
-                <div class="input-container">
-                    <input type="text" id="userInput" placeholder="请输入您的回答..." autocomplete="off">
-                    <button id="sendBtn">发送</button>
-                </div>
-            </div>
-            
-            <div class="course-container" id="courseContainer" style="display: none;">
-                <h2>生成的课程列表</h2>
-                <div class="courses" id="coursesList"></div>
-                <button id="syncToNotion" class="sync-btn">同步到Notion</button>
             </div>
         </main>
     </div>

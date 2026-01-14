@@ -1039,5 +1039,420 @@ async function initializeApp() {
     initLearningModule();
 }
 
+// Tab切换功能
+function initTabSwitching() {
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabPanels = document.querySelectorAll('.tab-panel');
+    
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // 移除所有激活状态
+            tabBtns.forEach(b => b.classList.remove('active'));
+            tabPanels.forEach(p => p.classList.remove('active'));
+            
+            // 添加当前激活状态
+            const tabId = btn.dataset.tab;
+            btn.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+            
+            // 如果切换到课程学习Tab，加载课程列表和最近学习记录
+            if (tabId === 'course-learning') {
+                initLearningModule();
+            }
+        });
+    });
+}
+
+// 学习功能模块 - 全局变量
+let availableCourses = []; // 从Notion获取的课程列表
+let currentCourse = '';
+let currentChapter = '';
+let learningMessages = []; // 学习对话记录
+let lastLearnRecord = null; // 最近学习记录，用于断点续学
+
+// 学习功能模块 - 初始化
+async function initLearningModule() {
+    // 如果已经初始化过，直接返回
+    if (availableCourses.length > 0 && lastLearnRecord) {
+        return;
+    }
+    
+    // 添加事件监听器
+    sendLearningBtn.addEventListener('click', sendLearningMessage);
+    learningInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendLearningMessage();
+        }
+    });
+    stopLearningBtn.addEventListener('click', showConfirmModal);
+    confirmStopBtn.addEventListener('click', syncLearningToNotion);
+    cancelStopBtn.addEventListener('click', hideConfirmModal);
+    courseSelect.addEventListener('change', handleCourseChange);
+    chapterSelect.addEventListener('change', handleChapterChange);
+    continueBtn.addEventListener('click', continueLastLearning);
+    restartBtn.addEventListener('click', restartLearning);
+    
+    // 从Notion拉取课程列表和最近学习记录（并行调用，提高效率）
+    const [coursesResult, lastRecordResult] = await Promise.all([
+        fetchCoursesFromNotion(),
+        fetchLastLearnRecord()
+    ]);
+    
+    // 处理最近学习记录
+    if (lastRecordResult.hasLastRecord) {
+        lastLearnRecord = lastRecordResult;
+        showContinuePrompt();
+    }
+}
+
+// 从Notion获取最近学习记录
+async function fetchLastLearnRecord() {
+    try {
+        // 注意：请将API地址替换为您部署后的实际地址
+        // 例如：https://your-project.vercel.app/api/getLastLearnRecord
+        const API_BASE_URL = 'https://your-deployed-api-url.com/api';
+        
+        // 调用Serverless函数获取最近学习记录
+        const response = await fetch(`${API_BASE_URL}/getLastLearnRecord`);
+        const result = await response.json();
+        return result;
+    } catch (error) {
+        console.error('获取最近学习记录失败:', error);
+        return {
+            hasLastRecord: false,
+            courseName: '',
+            chapterName: '',
+            lastChatTime: '',
+            lastChatContext: []
+        };
+    }
+}
+
+// 显示断点续学提示
+function showContinuePrompt() {
+    const lastCourseChapter = document.getElementById('lastCourseChapter');
+    const continuePrompt = document.getElementById('continueLearningPrompt');
+    
+    lastCourseChapter.textContent = `${lastLearnRecord.courseName}-${lastLearnRecord.chapterName}`;
+    continuePrompt.style.display = 'block';
+}
+
+// 隐藏断点续学提示
+function hideContinuePrompt() {
+    const continuePrompt = document.getElementById('continueLearningPrompt');
+    continuePrompt.style.display = 'none';
+}
+
+// 继续上次学习
+function continueLastLearning() {
+    // 自动选中对应课程
+    const courseSelect = document.getElementById('courseSelect');
+    for (let i = 0; i < courseSelect.options.length; i++) {
+        if (courseSelect.options[i].value === lastLearnRecord.courseName) {
+            courseSelect.selectedIndex = i;
+            handleCourseChange();
+            break;
+        }
+    }
+    
+    // 短暂延迟后选中对应章节
+    setTimeout(() => {
+        const chapterSelect = document.getElementById('chapterSelect');
+        for (let i = 0; i < chapterSelect.options.length; i++) {
+            if (chapterSelect.options[i].value === lastLearnRecord.chapterName) {
+                chapterSelect.selectedIndex = i;
+                handleChapterChange();
+                break;
+            }
+        }
+        
+        // 渲染历史对话
+        if (lastLearnRecord.lastChatContext && lastLearnRecord.lastChatContext.length > 0) {
+            lastLearnRecord.lastChatContext.forEach(msg => {
+                addLearningMessage(msg.content, msg.role);
+            });
+        }
+        
+        // 隐藏提示
+        hideContinuePrompt();
+    }, 500);
+}
+
+// 重新开始学习
+function restartLearning() {
+    hideContinuePrompt();
+    resetLearningState();
+}
+
+// 从Notion拉取课程列表
+async function fetchCoursesFromNotion() {
+    try {
+        // 显示加载状态
+        addLearningMessage('正在从Notion加载课程列表...', 'ai');
+        
+        // 注意：请将API地址替换为您部署后的实际地址
+        // 例如：https://your-project.vercel.app/api
+        const API_BASE_URL = 'https://your-deployed-api-url.com/api';
+        
+        // 调用Serverless函数拉取课程列表
+        const response = await fetch(`${API_BASE_URL}/getCourseList`);
+        const result = await response.json();
+        
+        if (result.success) {
+            availableCourses = result.courses;
+            
+            // 清空并填充课程下拉框
+            courseSelect.innerHTML = '<option value="">请选择课程</option>';
+            availableCourses.forEach(course => {
+                const option = document.createElement('option');
+                option.value = course.courseName;
+                option.textContent = course.courseName;
+                courseSelect.appendChild(option);
+            });
+            
+            // 启用课程下拉框
+            courseSelect.disabled = false;
+            
+            // 移除加载状态消息
+            learningChatMessages.removeChild(learningChatMessages.lastChild);
+            addLearningMessage('课程列表加载完成，请选择课程开始学习。', 'ai');
+        } else {
+            addLearningMessage(`加载课程列表失败: ${result.message}`, 'ai');
+        }
+        
+        return result;
+    } catch (error) {
+        console.error('拉取课程列表失败:', error);
+        addLearningMessage(`加载课程列表失败: ${error.message}`, 'ai');
+        return { success: false, message: error.message };
+    }
+}
+
+// 处理课程选择变化
+function handleCourseChange() {
+    const selectedCourseName = courseSelect.value;
+    currentCourse = selectedCourseName;
+    
+    // 清空章节下拉框
+    chapterSelect.innerHTML = '<option value="">请选择章节</option>';
+    chapterSelect.disabled = true;
+    
+    // 清空学习对话
+    learningChatMessages.innerHTML = '';
+    learningMessages = [];
+    
+    // 禁用学习输入
+    learningInput.disabled = true;
+    sendLearningBtn.disabled = true;
+    stopLearningBtn.disabled = true;
+    
+    if (selectedCourseName) {
+        // 查找选中课程的章节
+        const selectedCourse = availableCourses.find(course => course.courseName === selectedCourseName);
+        if (selectedCourse && selectedCourse.chapters.length > 0) {
+            // 填充章节下拉框
+            selectedCourse.chapters.forEach(chapter => {
+                const option = document.createElement('option');
+                option.value = chapter.chapterName;
+                option.textContent = chapter.chapterName;
+                // 保存章节核心目标到option元素上，方便后续使用
+                option.dataset.coreGoal = chapter.coreGoal;
+                chapterSelect.appendChild(option);
+            });
+            
+            // 启用章节下拉框
+            chapterSelect.disabled = false;
+            
+            addLearningMessage(`您选择了课程：${selectedCourseName}，请继续选择章节。`, 'ai');
+        } else {
+            addLearningMessage(`课程 ${selectedCourseName} 暂无章节，请联系管理员添加。`, 'ai');
+        }
+    }
+}
+
+// 处理章节选择变化
+function handleChapterChange() {
+    const selectedChapterName = chapterSelect.value;
+    currentChapter = selectedChapterName;
+    
+    if (selectedChapterName) {
+        // 获取章节核心目标
+        const selectedChapter = chapterSelect.options[chapterSelect.selectedIndex];
+        const coreGoal = selectedChapter.dataset.coreGoal;
+        
+        // 启用学习输入
+        learningInput.disabled = false;
+        sendLearningBtn.disabled = false;
+        
+        addLearningMessage(`您选择了章节：${selectedChapterName}，核心目标：${coreGoal}。现在可以开始学习对话了。`, 'ai');
+    } else {
+        // 禁用学习输入
+        learningInput.disabled = true;
+        sendLearningBtn.disabled = true;
+        stopLearningBtn.disabled = true;
+    }
+}
+
+// 发送学习消息
+async function sendLearningMessage() {
+    const message = learningInput.value.trim();
+    if (!message || !currentCourse || !currentChapter) return;
+    
+    // 添加用户消息
+    addLearningMessage(message, 'user');
+    learningMessages.push({ role: 'user', content: message });
+    learningInput.value = '';
+    
+    // 禁用输入和发送按钮
+    sendLearningBtn.disabled = true;
+    learningInput.disabled = true;
+    
+    try {
+        // 构建请求体，包含历史上下文
+        const requestBody = {
+            courseName: currentCourse,
+            chapterName: currentChapter,
+            userInput: message,
+            lastChatContext: learningMessages.slice(-10) // 只发送最近10条消息，避免上下文过长
+        };
+        
+        // 注意：请将API地址替换为您部署后的实际地址
+        // 例如：https://your-project.vercel.app/api
+        const API_BASE_URL = 'https://your-deployed-api-url.com/api';
+        
+        // 调用Serverless函数与AI对话
+        const response = await fetch(`${API_BASE_URL}/chatWithAI`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // 添加AI回复
+            addLearningMessage(result.aiResponse, 'ai');
+            learningMessages.push({ role: 'ai', content: result.aiResponse });
+            
+            // 启用停止学习按钮
+            stopLearningBtn.disabled = false;
+        } else {
+            addLearningMessage(`AI回复失败: ${result.message}`, 'ai');
+        }
+    } catch (error) {
+        console.error('发送学习消息失败:', error);
+        addLearningMessage(`发送消息失败: ${error.message}`, 'ai');
+    } finally {
+        // 启用输入和发送按钮
+        sendLearningBtn.disabled = false;
+        learningInput.disabled = false;
+    }
+}
+
+// 添加学习消息到聊天界面
+function addLearningMessage(content, sender) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${sender}`;
+    messageDiv.innerHTML = `<p>${content}</p>`;
+    learningChatMessages.appendChild(messageDiv);
+    learningChatMessages.scrollTop = learningChatMessages.scrollHeight;
+}
+
+// 显示确认停止学习弹窗
+function showConfirmModal() {
+    confirmModal.style.display = 'flex';
+}
+
+// 隐藏确认停止学习弹窗
+function hideConfirmModal() {
+    confirmModal.style.display = 'none';
+}
+
+// 同步学习记录到Notion
+async function syncLearningToNotion() {
+    try {
+        // 显示同步状态
+        addLearningMessage('正在将学习记录同步到Notion...', 'ai');
+        
+        // 注意：请将API地址替换为您部署后的实际地址
+        // 例如：https://your-project.vercel.app/api
+        const API_BASE_URL = 'https://your-deployed-api-url.com/api';
+        
+        // 调用Serverless函数同步到Notion
+        const response = await fetch(`${API_BASE_URL}/syncToNotion`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                courseName: currentCourse,
+                chapterName: currentChapter
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            addLearningMessage('学习记录已成功同步到Notion！', 'ai');
+            
+            // 重置学习状态
+            resetLearningState();
+        } else {
+            addLearningMessage(`同步失败: ${result.message}`, 'ai');
+        }
+    } catch (error) {
+        console.error('同步学习记录失败:', error);
+        addLearningMessage(`同步失败: ${error.message}`, 'ai');
+    } finally {
+        // 隐藏确认弹窗
+        hideConfirmModal();
+    }
+}
+
+// 重置学习状态
+function resetLearningState() {
+    // 清空当前选择
+    currentCourse = '';
+    currentChapter = '';
+    learningMessages = [];
+    lastLearnRecord = null;
+    
+    // 重置UI状态
+    chapterSelect.innerHTML = '<option value="">请选择章节</option>';
+    chapterSelect.disabled = true;
+    learningInput.disabled = true;
+    sendLearningBtn.disabled = true;
+    stopLearningBtn.disabled = true;
+    
+    // 清空学习对话
+    learningChatMessages.innerHTML = '';
+    
+    addLearningMessage('学习已结束，您可以选择新的课程继续学习。', 'ai');
+}
+
+// 在原有初始化函数中添加Tab切换初始化
+async function initializeApp() {
+    // 添加事件监听器
+    sendBtn.addEventListener('click', sendMessage);
+    userInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            sendMessage();
+        }
+    });
+    syncToNotionBtn.addEventListener('click', syncCoursesToNotion);
+    
+    // 初始化Tab切换
+    initTabSwitching();
+    
+    // 加载所有提示词
+    await loadPrompts();
+    
+    // 显示初始问题
+    displayInitialQuestion();
+}
+
 // 页面加载完成后初始化
 window.addEventListener('DOMContentLoaded', init);

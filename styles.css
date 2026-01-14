@@ -521,6 +521,125 @@ button:disabled {
     text-align: center;
 }
 
+/* Tab容器样式 */
+.tab-container {
+    background: #f7fafc;
+    border-radius: 10px;
+    padding: 0;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+/* Tab导航栏样式 */
+.tab-nav {
+    display: flex;
+    background: #edf2f7;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+/* Tab按钮样式 */
+.tab-btn {
+    padding: 15px 30px;
+    background: transparent;
+    color: #4a5568;
+    border: none;
+    border-bottom: 3px solid transparent;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin: 0;
+    border-radius: 0;
+    width: 50%;
+}
+
+/* Tab按钮悬停样式 */
+.tab-btn:hover {
+    background: #e2e8f0;
+    color: #2d3748;
+    transform: none;
+    box-shadow: none;
+}
+
+/* 激活Tab按钮样式 */
+.tab-btn.active {
+    background: #f7fafc;
+    color: #2b6cb0;
+    border-bottom-color: #4299e1;
+    box-shadow: none;
+}
+
+/* Tab内容区样式 */
+.tab-content {
+    padding: 20px;
+}
+
+/* Tab面板样式 */
+.tab-panel {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+/* 激活Tab面板样式 */
+.tab-panel.active {
+    display: block;
+}
+
+/* 断点续学提示样式 */
+.continue-learning-prompt {
+    background: #ebf8ff;
+    border: 1px solid #bee3f8;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+    color: #2b6cb0;
+    text-align: center;
+}
+
+/* 断点续学提示按钮区域 */
+.prompt-actions {
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+/* 继续学习按钮样式 */
+.continue-btn {
+    background: #4299e1;
+    color: white;
+}
+
+/* 重新开始按钮样式 */
+.restart-btn {
+    background: #a0aec0;
+    color: white;
+}
+
+/* 多行输入框样式 */
+#learningInput {
+    resize: vertical;
+    min-height: 80px;
+    padding: 12px 16px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-family: inherit;
+    transition: border-color 0.2s ease;
+}
+
+#learningInput:focus {
+    outline: none;
+    border-color: #4299e1;
+    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+}
+
+#learningInput:disabled {
+    background: #f7fafc;
+    cursor: not-allowed;
+    color: #a0aec0;
+}
+
 @media (max-width: 768px) {
     .container {
         padding: 10px;

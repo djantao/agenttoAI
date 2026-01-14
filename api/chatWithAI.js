@@ -2,17 +2,22 @@
 // 功能：接收前端传的课程名、章节名、用户输入 → 调用AI接口 → 增量写入GitHub当日JSON文件
 // 注意：该文件需部署在Vercel/Netlify的api目录下
 
-const fetch = require('node-fetch');
+// 使用平台提供的全局fetch和Buffer
+// Serverless环境中通常已全局可用，无需额外导入
+const fetch = global.fetch;
+const Buffer = global.Buffer;
 
 // 重试机制配置
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // 1秒
 
 // 等待函数
-const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 // 重试函数
-const retryFetch = async (url, options, retries = MAX_RETRIES) => {
+async function retryFetch(url, options, retries = MAX_RETRIES) {
   try {
     const response = await fetch(url, options);
     
@@ -141,6 +146,19 @@ const callAI = async (prompt, aiApiUrl, aiApiKey) => {
 // 主函数
 exports.handler = async (event, context) => {
   try {
+    // 处理CORS预检请求
+    if (event.httpMethod === 'OPTIONS') {
+      return {
+        statusCode: 200,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type'
+        },
+        body: JSON.stringify({ success: true })
+      };
+    }
+    
     // 获取请求体
     let requestBody;
     try {
@@ -157,7 +175,7 @@ exports.handler = async (event, context) => {
       };
     }
     
-    const { courseName, chapterName, userInput } = requestBody;
+    const { courseName, chapterName, userInput, lastChatContext = [] } = requestBody;
     
     // 验证必填参数
     if (!courseName || !chapterName || !userInput) {
@@ -214,8 +232,16 @@ exports.handler = async (event, context) => {
     const dateStr = utc8Date.toISOString().split('T')[0];
     const filePath = `daily-chats/${dateStr}.json`;
     
-    // 1. 调用AI接口获取回复
-    const prompt = `课程名称：${courseName}\n章节名称：${chapterName}\n用户输入：${userInput}\n请根据课程内容回答用户的问题，保持专业和清晰。`;
+    // 1. 构建提示词，支持断点续学
+    let prompt = `课程名称：${courseName}\n章节名称：${chapterName}\n用户输入：${userInput}\n`;
+    
+    // 如果有历史上下文，添加到提示词中
+    if (lastChatContext && lastChatContext.length > 0) {
+      prompt += `历史学习内容：${JSON.stringify(lastChatContext)}\n请基于此继续解答用户问题，保持专业和清晰。`;
+    } else {
+      prompt += `请根据课程内容回答用户的问题，保持专业和清晰。`;
+    }
+    
     const aiResponse = await callAI(prompt, AI_API_URL, AI_API_KEY);
     
     // 2. 构造对话记录
@@ -304,16 +330,3 @@ exports.handler = async (event, context) => {
     };
   }
 };
-
-// 处理CORS预检请求
-if (event.httpMethod === 'OPTIONS') {
-  return {
-    statusCode: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
-    },
-    body: JSON.stringify({ success: true })
-  };
-}
