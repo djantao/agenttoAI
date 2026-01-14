@@ -47,8 +47,46 @@
         </header>
         
         <main>
+            <!-- 学习界面 -->
+            <div id="learningInterface" class="learning-interface">
+                <h2>AI学习助手</h2>
+                
+                <!-- 课程和章节选择 -->
+                <div class="course-chapter-selector">
+                    <div class="select-group">
+                        <label for="courseSelect">选择课程：</label>
+                        <select id="courseSelect">
+                            <option value="">请选择课程</option>
+                        </select>
+                    </div>
+                    <div class="select-group">
+                        <label for="chapterSelect">选择章节：</label>
+                        <select id="chapterSelect" disabled>
+                            <option value="">请先选择课程</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- 学习按钮组 -->
+                <div class="learning-controls">
+                    <button id="continueLearningBtn" class="continue-btn">继续学习</button>
+                    <button id="stopLearningBtn" class="stop-btn" disabled>停止学习</button>
+                </div>
+                
+                <!-- 学习聊天区域 -->
+                <div class="learning-chat-container">
+                    <div id="learningChatHistory" class="learning-chat-history">
+                        <!-- 学习对话历史将显示在这里 -->
+                    </div>
+                    <div class="learning-chat-input-area">
+                        <textarea id="learningUserInput" placeholder="请输入您的学习问题..." disabled></textarea>
+                        <button id="learningSendBtn" disabled>发送</button>
+                    </div>
+                </div>
+            </div>
+            
             <!-- 对话区域 -->
-            <div class="chat-container">
+            <div id="conversationInterface" class="chat-container">
                 <div id="chatHistory" class="chat-history">
                     <!-- 对话历史将显示在这里 -->
                 </div>

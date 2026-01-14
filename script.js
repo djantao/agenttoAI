@@ -27,16 +27,41 @@ const questions = [
 
 // DOM元素
 const elements = {
+    // 配置相关
     configModal: document.getElementById('configModal'),
     configForm: document.getElementById('configForm'),
+    
+    // 对话界面
     chatHistory: document.getElementById('chatHistory'),
     userInput: document.getElementById('userInput'),
     sendBtn: document.getElementById('sendBtn'),
     resetBtn: document.getElementById('resetBtn'),
+    
+    // 课程列表
     courseList: document.getElementById('courseList'),
     courses: document.getElementById('courses'),
     syncToNotion: document.getElementById('syncToNotion'),
-    regenerateBtn: document.getElementById('regenerateBtn')
+    regenerateBtn: document.getElementById('regenerateBtn'),
+    
+    // 学习界面
+    courseSelect: document.getElementById('courseSelect'),
+    chapterSelect: document.getElementById('chapterSelect'),
+    continueLearningBtn: document.getElementById('continueLearningBtn'),
+    stopLearningBtn: document.getElementById('stopLearningBtn'),
+    learningChatHistory: document.getElementById('learningChatHistory'),
+    learningUserInput: document.getElementById('learningUserInput'),
+    learningSendBtn: document.getElementById('learningSendBtn')
+};
+
+// 学习状态管理
+let learningState = {
+    currentCourse: null,
+    currentChapter: null,
+    isLearning: false,
+    startTime: null,
+    endTime: null,
+    chatHistory: [],
+    notionDatabaseId: '2e43af348d5780fd9b8ed286eba4c996' // 学习记录表数据库ID
 };
 
 // 初始化应用
@@ -46,6 +71,7 @@ function initApp() {
     if (savedConfig) {
         config = JSON.parse(savedConfig);
         startConversation();
+        loadCourses();
     } else {
         // 显示配置弹窗
         elements.configModal.style.display = 'flex';
@@ -58,6 +84,433 @@ function initApp() {
     elements.resetBtn.addEventListener('click', resetConversation);
     elements.syncToNotion.addEventListener('click', syncCoursesToNotion);
     elements.regenerateBtn.addEventListener('click', regenerateCourses);
+    
+    // 学习界面事件
+    elements.courseSelect.addEventListener('change', handleCourseChange);
+    elements.chapterSelect.addEventListener('change', handleChapterChange);
+    elements.continueLearningBtn.addEventListener('click', handleContinueLearning);
+    elements.stopLearningBtn.addEventListener('click', handleStopLearning);
+    elements.learningSendBtn.addEventListener('click', handleLearningSendMessage);
+    elements.learningUserInput.addEventListener('keydown', handleLearningKeyDown);
+}
+
+// 加载课程列表
+async function loadCourses() {
+    try {
+        // 从Notion获取课程列表
+        const courses = await getCoursesFromNotion();
+        
+        // 更新课程选择下拉框
+        const courseSelect = elements.courseSelect;
+        courseSelect.innerHTML = '<option value="">请选择课程</option>';
+        
+        courses.forEach(course => {
+            const option = document.createElement('option');
+            option.value = course.id;
+            option.textContent = course.name;
+            courseSelect.appendChild(option);
+        });
+    } catch (error) {
+        console.error('加载课程列表失败:', error);
+    }
+}
+
+// 从Notion获取课程列表
+async function getCoursesFromNotion() {
+    try {
+        const response = await fetch('https://api.notion.com/v1/databases/' + config.notionDatabaseId + '/query', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${config.notionApiToken}`,
+                'Content-Type': 'application/json',
+                'Notion-Version': '2022-06-28'
+            },
+            body: JSON.stringify({
+                page_size: 100
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Notion API错误：${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // 解析课程列表
+        const courses = data.results.map(page => {
+            return {
+                id: page.id,
+                name: page.properties['Name']?.title[0]?.text?.content || '未命名课程'
+            };
+        });
+        
+        return courses;
+    } catch (error) {
+        console.error('从Notion获取课程列表失败:', error);
+        return [];
+    }
+}
+
+// 处理课程选择变化
+async function handleCourseChange() {
+    const courseId = elements.courseSelect.value;
+    elements.chapterSelect.innerHTML = '<option value="">请选择章节</option>';
+    elements.chapterSelect.disabled = !courseId;
+    
+    if (courseId) {
+        // 根据课程获取章节
+        const chapters = await getChaptersFromNotion(courseId);
+        
+        // 更新章节选择下拉框
+        chapters.forEach(chapter => {
+            const option = document.createElement('option');
+            option.value = chapter.id;
+            option.textContent = chapter.name;
+            elements.chapterSelect.appendChild(option);
+        });
+    }
+}
+
+// 从Notion获取章节列表
+async function getChaptersFromNotion(courseId) {
+    try {
+        // 这里需要根据实际的Notion数据库结构来获取章节
+        // 假设章节是通过课程页面的关系属性或其他方式关联的
+        // 暂时返回模拟数据
+        return [
+            { id: 'chapter-1', name: '第1章：入门介绍' },
+            { id: 'chapter-2', name: '第2章：核心概念' },
+            { id: 'chapter-3', name: '第3章：实战应用' }
+        ];
+    } catch (error) {
+        console.error('从Notion获取章节列表失败:', error);
+        return [];
+    }
+}
+
+// 处理章节选择变化
+function handleChapterChange() {
+    const chapterId = elements.chapterSelect.value;
+    if (chapterId) {
+        // 可以在这里加载章节相关的学习资料或初始化学习状态
+        console.log('选择了章节:', chapterId);
+    }
+}
+
+// 处理继续学习按钮点击
+async function handleContinueLearning() {
+    const courseId = elements.courseSelect.value;
+    const chapterId = elements.chapterSelect.value;
+    
+    if (!courseId || !chapterId) {
+        alert('请先选择课程和章节');
+        return;
+    }
+    
+    // 获取课程和章节名称
+    const courseName = elements.courseSelect.options[elements.courseSelect.selectedIndex].text;
+    const chapterName = elements.chapterSelect.options[elements.chapterSelect.selectedIndex].text;
+    
+    // 更新学习状态
+    learningState.currentCourse = {
+        id: courseId,
+        name: courseName
+    };
+    learningState.currentChapter = {
+        id: chapterId,
+        name: chapterName
+    };
+    learningState.isLearning = true;
+    learningState.startTime = new Date();
+    learningState.chatHistory = [];
+    
+    // 加载最新的学习记录
+    await loadLatestLearningRecord();
+    
+    // 启用学习控件
+    elements.stopLearningBtn.disabled = false;
+    elements.learningUserInput.disabled = false;
+    elements.learningSendBtn.disabled = false;
+    
+    // 显示欢迎消息
+    addLearningMessage('ai', `欢迎学习 ${courseName} - ${chapterName}！`);
+}
+
+// 加载最新学习记录
+async function loadLatestLearningRecord() {
+    try {
+        // 从GitHub获取最新的学习记录
+        // 这里需要根据实际的GitHub API来实现
+        console.log('加载最新学习记录');
+        // 暂时不实现，后续添加
+    } catch (error) {
+        console.error('加载最新学习记录失败:', error);
+    }
+}
+
+// 处理停止学习按钮点击
+async function handleStopLearning() {
+    if (!learningState.isLearning) return;
+    
+    // 更新学习状态
+    learningState.isLearning = false;
+    learningState.endTime = new Date();
+    
+    // 计算学习时长
+    const durationMs = learningState.endTime - learningState.startTime;
+    const durationMinutes = Math.round(durationMs / (1000 * 60));
+    
+    // 生成学习摘要和挑战
+    const summary = generateLearningSummary(learningState.chatHistory);
+    const challenges = generateLearningChallenges(learningState.chatHistory);
+    
+    // 发送到Notion学习记录表
+    await saveLearningRecordToNotion({
+        courseName: learningState.currentCourse.name,
+        chapterName: learningState.currentChapter.name,
+        startTime: learningState.startTime.toISOString(),
+        endTime: learningState.endTime.toISOString(),
+        duration: `${durationMinutes}分钟`,
+        mastery: '中等', // 可以根据对话内容自动评估
+        status: '已完成',
+        summary: summary,
+        challenges: challenges
+    });
+    
+    // 保存对话记录到GitHub
+    await saveChatHistoryToGitHub();
+    
+    // 禁用学习控件
+    elements.stopLearningBtn.disabled = true;
+    elements.learningUserInput.disabled = true;
+    elements.learningSendBtn.disabled = true;
+    
+    // 显示学习完成消息
+    addLearningMessage('ai', `学习已完成！学习时长：${durationMinutes}分钟`);
+}
+
+// 生成学习摘要
+function generateLearningSummary(chatHistory) {
+    // 简单实现：提取对话中的关键信息
+    // 后续可以通过AI生成更智能的摘要
+    return '本次学习涵盖了章节的主要内容，进行了相关问题的讨论和解答。';
+}
+
+// 生成学习挑战
+function generateLearningChallenges(chatHistory) {
+    // 简单实现：提取对话中的疑问和挑战
+    // 后续可以通过AI生成更智能的挑战
+    return '需要进一步巩固的知识点包括：核心概念理解、实际应用技巧等。';
+}
+
+// 保存学习记录到Notion
+async function saveLearningRecordToNotion(record) {
+    try {
+        const response = await fetch('https://api.notion.com/v1/pages', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${config.notionApiToken}`,
+                'Content-Type': 'application/json',
+                'Notion-Version': '2022-06-28'
+            },
+            body: JSON.stringify({
+                parent: {
+                    database_id: learningState.notionDatabaseId
+                },
+                properties: {
+                    '课程名称': {
+                        title: [{
+                            text: {
+                                content: record.courseName
+                            }
+                        }]
+                    },
+                    '章节名称': {
+                        rich_text: [{
+                            text: {
+                                content: record.chapterName
+                            }
+                        }]
+                    },
+                    '学习开始时间': {
+                        date: {
+                            start: record.startTime
+                        }
+                    },
+                    '学习结束时间': {
+                        date: {
+                            start: record.endTime
+                        }
+                    },
+                    '学习时长': {
+                        rich_text: [{
+                            text: {
+                                content: record.duration
+                            }
+                        }]
+                    },
+                    '掌握程度': {
+                        select: {
+                            name: record.mastery
+                        }
+                    },
+                    '状态': {
+                        select: {
+                            name: record.status
+                        }
+                    },
+                    '学习摘要': {
+                        rich_text: [{
+                            text: {
+                                content: record.summary
+                            }
+                        }]
+                    },
+                    '学习挑战': {
+                        rich_text: [{
+                            text: {
+                                content: record.challenges
+                            }
+                        }]
+                    }
+                }
+            })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Notion API错误：${errorData.message || response.statusText}`);
+        }
+        
+        console.log('学习记录已保存到Notion');
+    } catch (error) {
+        console.error('保存学习记录到Notion失败:', error);
+        alert('保存学习记录到Notion失败: ' + error.message);
+    }
+}
+
+// 保存对话记录到GitHub
+async function saveChatHistoryToGitHub() {
+    try {
+        // 获取当前日期
+        const date = new Date();
+        const dateStr = date.toISOString().split('T')[0];
+        
+        // 构建对话记录数据
+        const chatData = {
+            course: learningState.currentCourse,
+            chapter: learningState.currentChapter,
+            timestamp: date.toISOString(),
+            messages: learningState.chatHistory
+        };
+        
+        // 这里需要实现GitHub API调用，将对话记录保存到每日对话目录
+        // 暂时打印日志
+        console.log('保存对话记录到GitHub:', chatData);
+        
+        // 后续需要实现实际的GitHub API调用
+    } catch (error) {
+        console.error('保存对话记录到GitHub失败:', error);
+    }
+}
+
+// 处理学习聊天消息发送
+async function handleLearningSendMessage() {
+    const userInput = elements.learningUserInput.value.trim();
+    if (!userInput || !learningState.isLearning) return;
+    
+    // 禁用发送按钮，防止重复发送
+    elements.learningSendBtn.disabled = true;
+    
+    // 添加用户消息
+    addLearningMessage('user', userInput);
+    elements.learningUserInput.value = '';
+    
+    // 保存到聊天历史
+    learningState.chatHistory.push({
+        role: 'user',
+        content: userInput,
+        timestamp: new Date().toISOString()
+    });
+    
+    try {
+        // 调用豆包API获取回复
+        const response = await fetch(config.doubaoApiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${config.doubaoApiKey}`
+            },
+            body: JSON.stringify({
+                model: config.doubaoModel,
+                messages: [
+                    {
+                        role: 'system',
+                        content: `你是一个专业的AI学习助手，正在教授${learningState.currentCourse.name} - ${learningState.currentChapter.name}的内容。请根据用户的问题提供详细、准确的解答。`
+                    },
+                    ...learningState.chatHistory
+                ],
+                max_tokens: 1000,
+                temperature: 0.7
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`API请求失败：${response.status}`);
+        }
+        
+        const data = await response.json();
+        const aiResponse = data.choices[0].message.content;
+        
+        // 添加AI回复
+        addLearningMessage('ai', aiResponse);
+        
+        // 保存到聊天历史
+        learningState.chatHistory.push({
+            role: 'assistant',
+            content: aiResponse,
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('获取AI回复失败:', error);
+        addLearningMessage('ai', `抱歉，获取回复失败：${error.message}`);
+    } finally {
+        // 重新启用发送按钮
+        elements.learningSendBtn.disabled = false;
+    }
+}
+
+// 处理学习聊天键盘事件
+function handleLearningKeyDown(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleLearningSendMessage();
+    }
+}
+
+// 添加学习消息到聊天历史
+function addLearningMessage(sender, text) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${sender}`;
+    
+    const bubbleDiv = document.createElement('div');
+    bubbleDiv.className = 'message-bubble';
+    
+    const textDiv = document.createElement('div');
+    textDiv.className = 'message-text';
+    textDiv.textContent = text;
+    
+    const timestampDiv = document.createElement('div');
+    timestampDiv.className = 'message-timestamp';
+    timestampDiv.textContent = new Date().toLocaleTimeString();
+    
+    bubbleDiv.appendChild(textDiv);
+    messageDiv.appendChild(bubbleDiv);
+    messageDiv.appendChild(timestampDiv);
+    
+    elements.learningChatHistory.appendChild(messageDiv);
+    elements.learningChatHistory.scrollTop = elements.learningChatHistory.scrollHeight;
 }
 
 // 处理配置提交
