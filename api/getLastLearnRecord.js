@@ -130,6 +130,8 @@ async function getLastChatFromGitHub(githubToken, githubRepoInfo) {
       }
     );
     
+    let chats = null;
+    
     // 如果今日文件不存在，获取最近的文件
     if (response.status === 404) {
       // 获取daily-chats目录下的所有文件
@@ -142,6 +144,10 @@ async function getLastChatFromGitHub(githubToken, githubRepoInfo) {
           }
         }
       );
+      
+      if (!response.ok) {
+        throw new Error(`获取GitHub文件列表失败：${response.status} ${response.statusText}`);
+      }
       
       const files = await response.json();
       if (!files || files.length === 0) {
@@ -164,42 +170,21 @@ async function getLastChatFromGitHub(githubToken, githubRepoInfo) {
         }
       );
       
-      const content = await response.text();
-      const chats = JSON.parse(content);
-      
-      if (Array.isArray(chats) && chats.length > 0) {
-        // 获取最后一条对话
-        const lastChat = chats[chats.length - 1];
-        
-        // 获取该课程该章节的所有对话，只保留最近5轮
-        const courseChats = chats.filter(function(chat) {
-          return chat.course === lastChat.course && chat.chapter === lastChat.chapter;
-        });
-        
-        // 只保留最近5轮对话（10条消息，每轮包含用户和AI回复）
-        const recentChats = courseChats.slice(-10).map(function(chat) {
-          return {
-            role: chat.role === 'user' ? 'user' : 'ai',
-            content: chat.content
-          };
-        });
-        
-        return {
-          hasLastRecord: true,
-          courseName: lastChat.course,
-          chapterName: lastChat.chapter,
-          lastChatTime: lastChat.time,
-          lastChatContext: recentChats
-        };
+      if (!response.ok) {
+        throw new Error(`获取GitHub文件内容失败：${response.status} ${response.statusText}`);
       }
       
-      return null;
+      const content = await response.text();
+      chats = JSON.parse(content);
+    } else if (response.ok) {
+      // 今日文件存在，获取内容
+      const data = await response.json();
+      const content = Buffer.from(data.content, 'base64').toString('utf8');
+      chats = JSON.parse(content);
+    } else {
+      // 其他错误情况
+      throw new Error(`获取GitHub文件失败：${response.status} ${response.statusText}`);
     }
-    
-    // 今日文件存在，获取内容
-    const data = await response.json();
-    const content = Buffer.from(data.content, 'base64').toString('utf8');
-    const chats = JSON.parse(content);
     
     if (Array.isArray(chats) && chats.length > 0) {
       // 获取最后一条对话
