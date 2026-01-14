@@ -21,15 +21,38 @@ function handleOptions(request) {
   });
 }
 
+// 格式化章节列表为适合Notion显示的字符串
+function formatChapters(chapters) {
+    if (!chapters || !Array.isArray(chapters)) {
+        return '';
+    }
+    
+    let chaptersText = '';
+    for (let i = 0; i < chapters.length; i++) {
+        const chapter = chapters[i];
+        if (chapter.title) {
+            chaptersText += `${i + 1}. ${chapter.title}`;
+            if (chapter.description) {
+                chaptersText += `：${chapter.description}`;
+            }
+            if (i < chapters.length - 1) {
+                chaptersText += '\n';
+            }
+        }
+    }
+    
+    return chaptersText;
+}
+
 // 处理POST请求
 async function handlePost(request) {
-  const origin = request.headers.get('Origin');
-  
-  // 设置CORS响应头
-  const headers = {
-    'Access-Control-Allow-Origin': ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
-    'Content-Type': 'application/json'
-  };
+    const origin = request.headers.get('Origin');
+    
+    // 设置CORS响应头
+    const headers = {
+        'Access-Control-Allow-Origin': ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
+        'Content-Type': 'application/json'
+    };
   
   try {
     // 解析请求体
@@ -102,6 +125,15 @@ async function handlePost(request) {
                   select: {
                     name: '初级'
                   }
+                },
+                '章节列表': {
+                  rich_text: [
+                    {
+                      text: {
+                        content: formatChapters(course.chapters)
+                      }
+                    }
+                  ]
                 },
                 '更新时间': {
                   date: {
@@ -176,7 +208,7 @@ async function handlePost(request) {
                   rich_text: [
                     {
                       text: {
-                        content: ''
+                        content: formatChapters(course.chapters)
                       }
                     }
                   ]
