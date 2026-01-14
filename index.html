@@ -47,63 +47,77 @@
         </header>
         
         <main>
-            <!-- 学习界面 -->
-            <div id="learningInterface" class="learning-interface">
-                <h2>AI学习助手</h2>
-                
-                <!-- 课程和章节选择 -->
-                <div class="course-chapter-selector">
-                    <div class="select-group">
-                        <label for="courseSelect">选择课程：</label>
-                        <select id="courseSelect">
-                            <option value="">请选择课程</option>
-                        </select>
-                    </div>
-                    <div class="select-group">
-                        <label for="chapterSelect">选择章节：</label>
-                        <select id="chapterSelect" disabled>
-                            <option value="">请先选择课程</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <!-- 学习按钮组 -->
-                <div class="learning-controls">
-                    <button id="continueLearningBtn" class="continue-btn">继续学习</button>
-                    <button id="stopLearningBtn" class="stop-btn" disabled>停止学习</button>
-                </div>
-                
-                <!-- 学习聊天区域 -->
-                <div class="learning-chat-container">
-                    <div id="learningChatHistory" class="learning-chat-history">
-                        <!-- 学习对话历史将显示在这里 -->
-                    </div>
-                    <div class="learning-chat-input-area">
-                        <textarea id="learningUserInput" placeholder="请输入您的学习问题..." disabled></textarea>
-                        <button id="learningSendBtn" disabled>发送</button>
-                    </div>
-                </div>
+            <!-- 页签导航栏 -->
+            <div class="tab-nav">
+                <button id="courseGenTab" class="tab-btn active" data-tab="course-generation">课程生成</button>
+                <button id="learningTab" class="tab-btn" data-tab="learning">学习中心</button>
             </div>
             
-            <!-- 对话区域 -->
-            <div id="conversationInterface" class="chat-container">
-                <div id="chatHistory" class="chat-history">
-                    <!-- 对话历史将显示在这里 -->
+            <!-- 页签内容区域 -->
+            <div class="tab-content">
+                <!-- 课程生成页签 -->
+                <div id="course-generation" class="tab-pane active">
+                    <!-- 对话区域 -->
+                    <div id="conversationInterface" class="chat-container">
+                        <div id="chatHistory" class="chat-history">
+                            <!-- 对话历史将显示在这里 -->
+                        </div>
+                        <div class="chat-input-area">
+                            <textarea id="userInput" placeholder="请输入您的回答..." disabled></textarea>
+                            <button id="sendBtn" disabled>发送</button>
+                            <button id="resetBtn" class="reset-btn">重置</button>
+                        </div>
+                    </div>
+                    
+                    <!-- 课程列表区域 -->
+                    <div id="courseList" class="course-list hidden">
+                        <h2>生成的课程列表</h2>
+                        <div id="courses" class="courses"></div>
+                        <div class="course-actions">
+                            <button id="syncToNotion" class="sync-btn">同步到Notion</button>
+                            <button id="regenerateBtn" class="regenerate-btn">重新生成</button>
+                        </div>
+                    </div>
                 </div>
-                <div class="chat-input-area">
-                    <textarea id="userInput" placeholder="请输入您的回答..." disabled></textarea>
-                    <button id="sendBtn" disabled>发送</button>
-                    <button id="resetBtn" class="reset-btn">重置</button>
-                </div>
-            </div>
-            
-            <!-- 课程列表区域 -->
-            <div id="courseList" class="course-list hidden">
-                <h2>生成的课程列表</h2>
-                <div id="courses" class="courses"></div>
-                <div class="course-actions">
-                    <button id="syncToNotion" class="sync-btn">同步到Notion</button>
-                    <button id="regenerateBtn" class="regenerate-btn">重新生成</button>
+                
+                <!-- 学习中心页签 -->
+                <div id="learning" class="tab-pane">
+                    <div id="learningInterface" class="learning-interface">
+                        <h2>AI学习助手</h2>
+                        
+                        <!-- 课程和章节选择 -->
+                        <div class="course-chapter-selector">
+                            <div class="select-group">
+                                <label for="courseSelect">选择课程：</label>
+                                <select id="courseSelect">
+                                    <option value="">请选择课程</option>
+                                </select>
+                            </div>
+                            <div class="select-group">
+                                <label for="chapterSelect">选择章节：</label>
+                                <select id="chapterSelect" disabled>
+                                    <option value="">请先选择课程</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- 学习按钮组 -->
+                        <div class="learning-controls">
+                            <button id="continueLearningBtn" class="continue-btn">继续学习</button>
+                            <button id="stopLearningBtn" class="stop-btn" disabled>停止学习</button>
+                        </div>
+                        
+                        <!-- 学习聊天区域 -->
+                        <div class="learning-chat-container">
+                            <div id="learningChatHistory" class="learning-chat-history">
+                                <!-- 学习对话历史将显示在这里 -->
+                            </div>
+                            <div class="learning-chat-input-area">
+                                <textarea id="learningUserInput" placeholder="请输入您的学习问题..." disabled></textarea>
+                                <button id="learningSendBtn" disabled>发送</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </main>

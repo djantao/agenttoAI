@@ -386,11 +386,75 @@ header p {
     pointer-events: none;
 }
 
+/* 页签样式 */
+.tab-nav {
+    display: flex;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #e0e0e0;
+    background-color: white;
+    border-radius: 8px 8px 0 0;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.tab-btn {
+    background-color: #f5f7fa;
+    border: none;
+    padding: 15px 30px;
+    font-size: 16px;
+    font-weight: 500;
+    color: #7f8c8d;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-bottom: 3px solid transparent;
+    flex: 1;
+    text-align: center;
+}
+
+.tab-btn:hover {
+    background-color: #e9ecef;
+    color: #495057;
+}
+
+.tab-btn.active {
+    background-color: white;
+    color: #3498db;
+    border-bottom-color: #3498db;
+    box-shadow: 0 -2px 4px rgba(52, 152, 219, 0.1);
+}
+
+.tab-content {
+    background-color: white;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.tab-pane {
+    padding: 20px;
+    display: none;
+    animation: tabFadeIn 0.3s ease;
+}
+
+.tab-pane.active {
+    display: block;
+}
+
+@keyframes tabFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 /* 学习界面样式 */
 .learning-interface {
     background-color: white;
     border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     padding: 20px;
     margin-bottom: 30px;
     animation: containerFadeIn 0.5s ease;

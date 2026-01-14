@@ -31,6 +31,12 @@ const elements = {
     configModal: document.getElementById('configModal'),
     configForm: document.getElementById('configForm'),
     
+    // 页签相关
+    tabBtns: document.querySelectorAll('.tab-btn'),
+    tabPanes: document.querySelectorAll('.tab-pane'),
+    courseGenTab: document.getElementById('courseGenTab'),
+    learningTab: document.getElementById('learningTab'),
+    
     // 对话界面
     chatHistory: document.getElementById('chatHistory'),
     userInput: document.getElementById('userInput'),
@@ -85,6 +91,11 @@ function initApp() {
     elements.syncToNotion.addEventListener('click', syncCoursesToNotion);
     elements.regenerateBtn.addEventListener('click', regenerateCourses);
     
+    // 页签事件
+    elements.tabBtns.forEach(btn => {
+        btn.addEventListener('click', handleTabClick);
+    });
+    
     // 学习界面事件
     elements.courseSelect.addEventListener('change', handleCourseChange);
     elements.chapterSelect.addEventListener('change', handleChapterChange);
@@ -92,6 +103,26 @@ function initApp() {
     elements.stopLearningBtn.addEventListener('click', handleStopLearning);
     elements.learningSendBtn.addEventListener('click', handleLearningSendMessage);
     elements.learningUserInput.addEventListener('keydown', handleLearningKeyDown);
+}
+
+// 处理页签点击
+function handleTabClick(e) {
+    // 获取目标页签
+    const targetTab = e.target.dataset.tab;
+    
+    // 移除所有页签的active类
+    elements.tabBtns.forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // 移除所有页签内容的active类
+    elements.tabPanes.forEach(pane => {
+        pane.classList.remove('active');
+    });
+    
+    // 为当前页签和内容添加active类
+    e.target.classList.add('active');
+    document.getElementById(targetTab).classList.add('active');
 }
 
 // 加载课程列表
