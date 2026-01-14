@@ -389,82 +389,9 @@ async function generateCoursesWithDoubao() {
         try {
             console.log('开始解析课程数据...');
             
-            // 首先尝试JSON解析
-            let coursesData = null;
-            
-            // 尝试1: 精确查找JSON格式部分（从【JSON格式】标记开始）
+            // 首先尝试从表格中提取数据（最可靠的方式）
             try {
-                console.log('尝试1: 精确查找JSON格式部分');
-                const jsonFormatStart = botResponse.indexOf('【JSON格式】');
-                if (jsonFormatStart !== -1) {
-                    // 从JSON格式标记后开始查找第一个{和最后一个}
-                    const jsonStart = botResponse.indexOf('{', jsonFormatStart);
-                    const jsonEnd = botResponse.lastIndexOf('}');
-                    
-                    if (jsonStart !== -1 && jsonEnd !== -1 && jsonStart < jsonEnd) {
-                        let jsonStr = botResponse.substring(jsonStart, jsonEnd + 1);
-                        
-                        // 尝试直接解析
-                        try {
-                            coursesData = JSON.parse(jsonStr);
-                            if (coursesData.courses && Array.isArray(coursesData.courses)) {
-                                processCourseData(coursesData);
-                                return;
-                            }
-                        } catch (e) {
-                            console.error('直接解析JSON失败，尝试修复...');
-                            
-                            // 尝试修复JSON，处理可能的截断问题
-                            // 查找所有可能的JSON对象
-                            const jsonRegex = /\{[^{}]*\{[^{}]*\}[^{}]*\}/g;
-                            const jsonMatches = jsonStr.match(jsonRegex);
-                            if (jsonMatches) {
-                                for (const match of jsonMatches) {
-                                    try {
-                                        coursesData = JSON.parse(match);
-                                        if (coursesData.courses && Array.isArray(coursesData.courses)) {
-                                            processCourseData(coursesData);
-                                            return;
-                                        }
-                                    } catch (innerE) {
-                                        continue;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            } catch (e) {
-                console.error('JSON解析尝试1失败:', e);
-            }
-            
-            // 尝试2: 匹配包含"courses"的JSON结构，更宽松的匹配
-            try {
-                console.log('尝试2: 匹配包含"courses"的JSON结构');
-                const jsonRegex = /"courses"\s*:\s*\[[\s\S]*?\]/g;
-                const jsonMatches = botResponse.match(jsonRegex);
-                if (jsonMatches && jsonMatches.length > 0) {
-                    for (const match of jsonMatches) {
-                        // 构建完整的JSON对象
-                        const fullJsonStr = `{"courses": ${match.substring(match.indexOf('['))}}`;
-                        try {
-                            coursesData = JSON.parse(fullJsonStr);
-                            if (coursesData.courses && Array.isArray(coursesData.courses)) {
-                                processCourseData(coursesData);
-                                return;
-                            }
-                        } catch (innerE) {
-                            continue;
-                        }
-                    }
-                }
-            } catch (e) {
-                console.error('JSON解析尝试2失败:', e);
-            }
-            
-            // 尝试3: 从表格中提取数据，改进版
-            try {
-                console.log('尝试3: 从表格中提取课程数据');
+                console.log('尝试1: 从表格中提取课程数据（优先方式）');
                 const tableData = extractCoursesFromTable(botResponse);
                 if (tableData && tableData.length > 0) {
                     console.log('成功从表格中提取了', tableData.length, '门课程');
@@ -486,8 +413,63 @@ async function generateCoursesWithDoubao() {
                     return;
                 }
             } catch (e) {
-                console.error('表格解析失败:', e);
+                console.error('表格解析失败，尝试JSON解析:', e);
                 console.error('表格解析错误详情:', e.stack);
+            }
+            
+            // 如果表格解析失败，再尝试JSON解析
+            let coursesData = null;
+            
+            // 尝试2: 精确查找JSON格式部分（从【JSON格式】标记开始）
+            try {
+                console.log('尝试2: 精确查找JSON格式部分');
+                const jsonFormatStart = botResponse.indexOf('【JSON格式】');
+                if (jsonFormatStart !== -1) {
+                    // 从JSON格式标记后开始查找第一个{和最后一个}
+                    const jsonStart = botResponse.indexOf('{', jsonFormatStart);
+                    const jsonEnd = botResponse.lastIndexOf('}');
+                    
+                    if (jsonStart !== -1 && jsonEnd !== -1 && jsonStart < jsonEnd) {
+                        let jsonStr = botResponse.substring(jsonStart, jsonEnd + 1);
+                        
+                        // 尝试直接解析
+                        try {
+                            coursesData = JSON.parse(jsonStr);
+                            if (coursesData.courses && Array.isArray(coursesData.courses)) {
+                                processCourseData(coursesData);
+                                return;
+                            }
+                        } catch (e) {
+                            console.error('直接解析JSON失败，尝试修复...');
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('JSON解析尝试2失败:', e);
+            }
+            
+            // 尝试3: 匹配包含"courses"的JSON结构，更宽松的匹配
+            try {
+                console.log('尝试3: 匹配包含"courses"的JSON结构');
+                const jsonRegex = /"courses"\s*:\s*\[[\s\S]*?\]/g;
+                const jsonMatches = botResponse.match(jsonRegex);
+                if (jsonMatches && jsonMatches.length > 0) {
+                    for (const match of jsonMatches) {
+                        // 构建完整的JSON对象
+                        const fullJsonStr = `{"courses": ${match.substring(match.indexOf('['))}}`;
+                        try {
+                            coursesData = JSON.parse(fullJsonStr);
+                            if (coursesData.courses && Array.isArray(coursesData.courses)) {
+                                processCourseData(coursesData);
+                                return;
+                            }
+                        } catch (innerE) {
+                            continue;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('JSON解析尝试3失败:', e);
             }
             
             // 所有尝试都失败
