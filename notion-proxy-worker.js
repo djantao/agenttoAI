@@ -52,6 +52,20 @@ function generateModule(course) {
         return [];
     }
     
+    // 优先使用AI返回的module字段
+    if (course.module) {
+        console.log('使用AI返回的module字段:', course.module);
+        // 处理不同格式的module字段
+        if (Array.isArray(course.module)) {
+            // 如果是数组，直接返回
+            return course.module;
+        } else if (typeof course.module === 'string') {
+            // 如果是字符串，转换为数组
+            return [course.module];
+        }
+    }
+    
+    // 如果没有AI返回的module字段，根据课程内容自动生成
     const courseContent = (course.title || '') + ' ' + (course.description || '');
     console.log('课程内容:', courseContent);
     const lowerContent = courseContent.toLowerCase();
@@ -59,6 +73,7 @@ function generateModule(course) {
     
     // 定义常见领域关键词
     const domainKeywords = [
+        { name: 'Fluss', keywords: ['fluss', 'flow', '数据集成'] },
         { name: '财务', keywords: ['财务', '会计', '报表', '记账', '金融'] },
         { name: 'Spark', keywords: ['spark', '大数据', '分布式'] },
         { name: 'Python', keywords: ['python', '编程', '代码'] },

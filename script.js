@@ -401,6 +401,7 @@ async function generateCoursesWithDoubao() {
                         description: course.courseDescription,
                         targetAudience: course.difficulty,
                         duration: '未知',
+                        module: course.module, // 保存表格中的module字段
                         chapters: course.chapters
                     }));
                     
