@@ -573,7 +573,7 @@ async function generateCoursesWithDoubao() {
                     courseName,
                     courseDescription,
                     difficulty,
-                    module,
+                    module: module || '通用', // 使用表格中的所属模块，如果没有则使用通用
                     chapters
                 });
             }
@@ -585,17 +585,18 @@ async function generateCoursesWithDoubao() {
         // 处理课程数据的辅助函数
         function processCourseData(coursesData) {
             // 将新格式转换为原有格式，确保兼容性
-            courses = coursesData.courses.map(course => ({
-                title: course.courseName || course.title || '未命名课程',
-                description: course.courseDescription || course.description || '暂无描述',
-                targetAudience: course.difficulty || course.targetAudience || '适合所有水平',
-                duration: course.duration || '未知',
-                chapters: (course.chapters || []).map(chapter => ({
-                    title: chapter.title || '未命名章节',
-                    description: chapter.coreObjective || chapter.description || '暂无描述',
-                    duration: chapter.duration || '未知'
-                }))
-            }));
+                courses = coursesData.courses.map(course => ({
+                    title: course.courseName || course.title || '未命名课程',
+                    description: course.courseDescription || course.description || '暂无描述',
+                    targetAudience: course.difficulty || course.targetAudience || '适合所有水平',
+                    duration: course.duration || '未知',
+                    module: course.module || '通用', // 新增：保存AI生成的所属模块
+                    chapters: (course.chapters || []).map(chapter => ({
+                        title: chapter.title || '未命名章节',
+                        description: chapter.coreObjective || chapter.description || '暂无描述',
+                        duration: chapter.duration || '未知'
+                    }))
+                }));
             
             // 显示生成结果
             addMessage('根据您的回答，我为您生成了以下课程列表：', 'bot');

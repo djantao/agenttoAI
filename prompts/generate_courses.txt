@@ -32,7 +32,7 @@ JSON格式要求：
   - courseName（课程名称）
   - courseDescription（课程简介）
   - difficulty（适合难度）
-  - module（所属模块）
+  - module（所属模块，如财务、Spark、Python等，根据课程内容自动生成）
   - chapters（对应章节，数组类型，每个章节包含title和coreObjective字段）
 
 四、输出示例：

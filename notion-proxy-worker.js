@@ -157,7 +157,7 @@ async function handlePost(request) {
                   }
                 },
                 '所属模块': {
-                  multi_select: generateModule(course).map(module => ({ name: module }))
+                  multi_select: (course.module ? [course.module] : generateModule(course)).map(module => ({ name: module }))
                 },
                 '章节列表': {
                   rich_text: [
