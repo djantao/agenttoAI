@@ -768,6 +768,6 @@ Cloudflare Worker部署说明：
 - 确保Notion数据库包含所需的属性（Name, Description, Status, Target Audience, Duration）
 - 首次使用前，需要在Notion中邀请您的Integration访问目标数据库
 */
-
+    
 // 页面加载完成后初始化
 window.addEventListener('DOMContentLoaded', init);
