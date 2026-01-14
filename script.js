@@ -1,303 +1,189 @@
-// 全局变量
-let currentQuestion = 1;
-let conversation = [];
-let courses = [];
-let prompts = {};
-let useMockData = false; // 添加模拟数据开关
+// AI学习助手主脚本
+// 实现三轮对话分析和课程生成功能
 
-// 配置变量 - 添加默认的豆包API地址和模型名称
+// 配置信息，将从localStorage读取
 let config = {
-    doubaoApiUrl: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions', // 火山引擎豆包API默认地址
-    doubaoModel: 'doubao-1-5-pro-32k-250115', // 使用用户开通的新模型
+    doubaoApiUrl: '',
+    doubaoModel: '',
     doubaoApiKey: '',
     notionApiToken: '',
     notionDatabaseId: ''
 };
 
-// 模拟数据
-const mockResponses = {
-    question2: "问题 2/3：您的学习目标是什么？（例如：找工作、提升技能、兴趣爱好等）",
-    question3: "问题 3/3：您每天可以投入多少时间学习？（例如：1小时、2-3小时、全天等）",
-    courses: {
-        "courses": [
-            {
-                "title": "编程基础入门",
-                "description": "适合初学者的编程基础课程，涵盖核心概念和基本技能。",
-                "targetAudience": "零基础学习者",
-                "duration": "20小时",
-                "chapters": [
-                    {
-                        "title": "编程概念入门",
-                        "description": "了解基本编程术语和概念，建立编程思维框架。",
-                        "duration": "4小时"
-                    },
-                    {
-                        "title": "变量与数据类型",
-                        "description": "学习变量定义和各种数据类型的使用方法。",
-                        "duration": "5小时"
-                    },
-                    {
-                        "title": "控制流语句",
-                        "description": "掌握条件判断和循环语句的使用。",
-                        "duration": "6小时"
-                    },
-                    {
-                        "title": "函数基础",
-                        "description": "学习函数的定义、调用和参数传递。",
-                        "duration": "5小时"
-                    }
-                ]
-            },
-            {
-                "title": "编程进阶实战",
-                "description": "通过实际项目学习编程进阶知识，提升实战能力。",
-                "targetAudience": "有基础的学习者",
-                "duration": "30小时",
-                "chapters": [
-                    {
-                        "title": "面向对象编程",
-                        "description": "学习面向对象编程的核心概念：类、对象、继承、多态。",
-                        "duration": "8小时"
-                    },
-                    {
-                        "title": "数据结构基础",
-                        "description": "掌握数组、链表、栈、队列等基本数据结构。",
-                        "duration": "7小时"
-                    },
-                    {
-                        "title": "算法入门",
-                        "description": "学习常见算法：排序、查找、递归等。",
-                        "duration": "8小时"
-                    },
-                    {
-                        "title": "项目实战：简易应用开发",
-                        "description": "通过实际项目练习，综合运用所学知识。",
-                        "duration": "7小时"
-                    }
-                ]
-            },
-            {
-                "title": "编程高级技巧",
-                "description": "深入学习编程高级概念和最佳实践，成为专家。",
-                "targetAudience": "有经验的开发者",
-                "duration": "40小时",
-                "chapters": [
-                    {
-                        "title": "设计模式",
-                        "description": "学习常见设计模式及其应用场景。",
-                        "duration": "10小时"
-                    },
-                    {
-                        "title": "性能优化",
-                        "description": "掌握代码性能优化的方法和技巧。",
-                        "duration": "10小时"
-                    },
-                    {
-                        "title": "微服务架构",
-                        "description": "了解微服务架构设计和实现。",
-                        "duration": "10小时"
-                    },
-                    {
-                        "title": "高级项目实战",
-                        "description": "开发复杂应用，锻炼综合能力。",
-                        "duration": "10小时"
-                    }
-                ]
-            }
-        ]
-    }
+// 对话状态
+let conversationState = {
+    currentQuestion: 0,
+    answers: [],
+    courses: [],
+    isProcessing: false
 };
 
-// API基础URL
-const NOTION_API_URL = 'https://api.notion.com/v1/pages';
+// 问题列表
+const questions = [
+    "您想学习什么领域的知识？",
+    "您的学习目标是什么？",
+    "您每天可以投入多少时间学习？"
+];
 
 // DOM元素
-const chatMessages = document.getElementById('chatMessages');
-const userInput = document.getElementById('userInput');
-const sendBtn = document.getElementById('sendBtn');
-const courseContainer = document.getElementById('courseContainer');
-const coursesList = document.getElementById('coursesList');
-const syncToNotionBtn = document.getElementById('syncToNotion');
-
-// 初始化事件监听器
-async function init() {
-    // 配置弹窗元素
-    const configModal = document.getElementById('configModal');
-    const configForm = document.getElementById('configForm');
-    
-    // 检查localStorage中是否有配置
-    const savedConfig = localStorage.getItem('aiLearningAssistantConfig');
-    
-    if (savedConfig) {
-        // 加载保存的配置
-        config = JSON.parse(savedConfig);
-        // 初始化应用
-        await initializeApp();
-    } else {
-        // 显示配置弹窗
-        configModal.style.display = 'flex';
-    }
-    
-    // 配置表单提交事件
-        configForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            // 获取表单数据
-            const doubaoApiUrl = document.getElementById('doubaoApiUrl').value;
-            const doubaoModel = document.getElementById('doubaoModel').value;
-            const doubaoApiKey = document.getElementById('doubaoApiKey').value;
-            const notionApiToken = document.getElementById('notionApiToken').value;
-            const notionDatabaseId = document.getElementById('notionDatabaseId').value;
-            
-            // 保存配置
-            config = {
-                doubaoApiUrl,
-                doubaoModel,
-                doubaoApiKey,
-                notionApiToken,
-                notionDatabaseId
-            };
-            
-            // 保存到localStorage
-            localStorage.setItem('aiLearningAssistantConfig', JSON.stringify(config));
-            
-            // 隐藏配置弹窗
-            configModal.style.display = 'none';
-            
-            // 初始化应用
-            await initializeApp();
-        });
-}
+const elements = {
+    configModal: document.getElementById('configModal'),
+    configForm: document.getElementById('configForm'),
+    chatHistory: document.getElementById('chatHistory'),
+    userInput: document.getElementById('userInput'),
+    sendBtn: document.getElementById('sendBtn'),
+    resetBtn: document.getElementById('resetBtn'),
+    courseList: document.getElementById('courseList'),
+    courses: document.getElementById('courses'),
+    syncToNotion: document.getElementById('syncToNotion'),
+    regenerateBtn: document.getElementById('regenerateBtn')
+};
 
 // 初始化应用
-async function initializeApp() {
-    // 添加事件监听器
-    sendBtn.addEventListener('click', sendMessage);
-    userInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            sendMessage();
-        }
-    });
-    syncToNotionBtn.addEventListener('click', syncCoursesToNotion);
-    
-    // 加载所有提示词
-    await loadPrompts();
-    
-    // 显示初始问题
-    displayInitialQuestion();
-}
-
-// 加载提示词
-async function loadPrompts() {
-    const promptFiles = [
-        { name: 'prompt1', path: 'prompts/prompt1.txt' },
-        { name: 'prompt2', path: 'prompts/prompt2.txt' },
-        { name: 'prompt3', path: 'prompts/prompt3.txt' },
-        { name: 'generateCourses', path: 'prompts/generate_courses.txt' }
-    ];
-    
-    for (const file of promptFiles) {
-        try {
-            const response = await fetch(file.path);
-            const content = await response.text();
-            prompts[file.name] = content;
-        } catch (error) {
-            console.error(`加载提示词${file.name}失败:`, error);
-        }
+function initApp() {
+    // 检查是否有配置
+    const savedConfig = localStorage.getItem('aiLearningAssistantConfig');
+    if (savedConfig) {
+        config = JSON.parse(savedConfig);
+        startConversation();
+    } else {
+        // 显示配置弹窗
+        elements.configModal.style.display = 'flex';
     }
+    
+    // 绑定事件
+    elements.configForm.addEventListener('submit', handleConfigSubmit);
+    elements.sendBtn.addEventListener('click', handleSendMessage);
+    elements.userInput.addEventListener('keydown', handleKeyDown);
+    elements.resetBtn.addEventListener('click', resetConversation);
+    elements.syncToNotion.addEventListener('click', syncCoursesToNotion);
+    elements.regenerateBtn.addEventListener('click', regenerateCourses);
 }
 
-// 显示初始问题
-function displayInitialQuestion() {
-    // 从prompt1.txt中提取示例问题
-    const initialQuestion = prompts.prompt1.split('提问示例：')[1] || '您好！我是您的AI学习助手。为了给您推荐合适的课程，请回答我几个问题。\n问题 1/3：您想学习什么领域的知识？（例如：编程、设计、数据分析等）';
-    addMessage(initialQuestion, 'bot');
-    conversation.push({ role: 'assistant', content: initialQuestion });
+// 处理配置提交
+async function handleConfigSubmit(e) {
+    e.preventDefault();
+    
+    // 获取表单数据
+    config = {
+        doubaoApiUrl: document.getElementById('doubaoApiUrl').value,
+        doubaoModel: document.getElementById('doubaoModel').value,
+        doubaoApiKey: document.getElementById('doubaoApiKey').value,
+        notionApiToken: document.getElementById('notionApiToken').value,
+        notionDatabaseId: document.getElementById('notionDatabaseId').value
+    };
+    
+    // 保存到localStorage
+    localStorage.setItem('aiLearningAssistantConfig', JSON.stringify(config));
+    
+    // 隐藏配置弹窗
+    elements.configModal.style.display = 'none';
+    
+    // 开始对话
+    startConversation();
 }
 
-// 发送消息
-async function sendMessage() {
-    const message = userInput.value.trim();
-    if (!message) return;
+// 开始对话
+function startConversation() {
+    conversationState.currentQuestion = 0;
+    conversationState.answers = [];
+    conversationState.courses = [];
+    
+    // 清空聊天历史
+    elements.chatHistory.innerHTML = '';
+    elements.courseList.classList.add('hidden');
+    
+    // 显示第一个问题
+    addMessage('ai', questions[0]);
+    enableInput();
+}
+
+// 添加消息到聊天历史
+function addMessage(sender, text) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${sender}`;
+    
+    const bubbleDiv = document.createElement('div');
+    bubbleDiv.className = 'message-bubble';
+    
+    const textDiv = document.createElement('div');
+    textDiv.className = 'message-text';
+    textDiv.textContent = text;
+    
+    const timestampDiv = document.createElement('div');
+    timestampDiv.className = 'message-timestamp';
+    timestampDiv.textContent = new Date().toLocaleTimeString();
+    
+    bubbleDiv.appendChild(textDiv);
+    messageDiv.appendChild(bubbleDiv);
+    messageDiv.appendChild(timestampDiv);
+    
+    elements.chatHistory.appendChild(messageDiv);
+    elements.chatHistory.scrollTop = elements.chatHistory.scrollHeight;
+}
+
+// 启用输入
+function enableInput() {
+    elements.userInput.disabled = false;
+    elements.sendBtn.disabled = false;
+    elements.userInput.focus();
+}
+
+// 禁用输入
+function disableInput() {
+    elements.userInput.disabled = true;
+    elements.sendBtn.disabled = true;
+}
+
+// 处理发送消息
+async function handleSendMessage() {
+    const userInput = elements.userInput.value.trim();
+    if (!userInput || conversationState.isProcessing) return;
+    
+    // 禁用输入
+    disableInput();
+    conversationState.isProcessing = true;
     
     // 添加用户消息
-    addMessage(message, 'user');
-    conversation.push({ role: 'user', content: message });
-    userInput.value = '';
+    addMessage('user', userInput);
+    elements.userInput.value = '';
     
-    // 禁用输入和发送按钮
-    sendBtn.disabled = true;
-    userInput.disabled = true;
+    // 保存答案
+    conversationState.answers.push(userInput);
     
-    try {
-        if (currentQuestion < 3) {
-            // 调用豆包API获取下一个问题
-            const nextQuestion = await getNextQuestion();
-            addMessage(nextQuestion, 'bot');
-            conversation.push({ role: 'assistant', content: nextQuestion });
-            currentQuestion++;
-        } else {
-            // 调用豆包API生成课程列表
-            await generateCoursesWithDoubao();
-        }
-    } catch (error) {
-        console.error('API调用失败:', error);
-        let errorMessage = '抱歉，处理失败，请稍后重试。';
-        
-        // 根据错误类型提供更具体的提示
-        if (error.message.includes('Failed to fetch')) {
-            // 检查是否是CORS错误
-            if (error.message.includes('CORS')) {
-                errorMessage = '跨域请求被阻止(CORS)，请检查API地址是否支持跨域访问，或使用代理服务。';
-            } else {
-                errorMessage = '网络连接失败，请检查您的网络设置或API地址是否正确。';
-            }
-        } else if (error.message.includes('401')) {
-            errorMessage = 'API密钥无效，请检查您是否使用了正确的豆包API密钥，而不是Notion或其他服务的密钥。';
-        } else if (error.message.includes('404')) {
-            // 区分API地址错误和模型不存在错误
-            if (error.message.includes('InvalidEndpointOrModel')) {
-                errorMessage = '模型名称无效或无访问权限，请检查模型配置。\n建议尝试的模型名称：doubao-lite, doubao-pro, doubao-1.8';
-            } else {
-                errorMessage = 'API地址无效，请检查您的配置。';
-            }
-        } else if (error.message.includes('AuthenticationError')) {
-            errorMessage = '认证失败，请确保您使用了正确的豆包API密钥，而不是Notion或其他服务的密钥。';
-        }
-        
-        addMessage(errorMessage, 'bot');
-    } finally {
-        // 启用输入和发送按钮
-        sendBtn.disabled = false;
-        userInput.disabled = false;
+    // 检查是否完成所有问题
+    if (conversationState.currentQuestion < questions.length - 1) {
+        // 显示下一个问题
+        conversationState.currentQuestion++;
+        setTimeout(() => {
+            addMessage('ai', questions[conversationState.currentQuestion]);
+            enableInput();
+            conversationState.isProcessing = false;
+        }, 500);
+    } else {
+        // 所有问题已回答，生成课程列表
+        await generateCourseList();
     }
 }
 
-// 添加消息到聊天界面
-function addMessage(content, sender) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${sender}-message`;
-    messageDiv.innerHTML = `<p>${content}</p>`;
-    chatMessages.appendChild(messageDiv);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+// 处理键盘事件
+function handleKeyDown(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSendMessage();
+    }
 }
 
-// 调用豆包API获取下一个问题
-async function getNextQuestion() {
-    // 使用模拟数据
-    if (useMockData) {
-        await new Promise(resolve => setTimeout(resolve, 500)); // 模拟网络延迟
-        if (currentQuestion === 1) {
-            return mockResponses.question2;
-        } else if (currentQuestion === 2) {
-            return mockResponses.question3;
-        }
-    }
-    
-    const promptKey = `prompt${currentQuestion + 1}`;
-    const systemPrompt = prompts[promptKey] || '';
+// 调用豆包API生成课程列表
+async function generateCourseList() {
+    // 显示正在生成提示
+    addMessage('ai', '正在根据您的需求生成课程列表，请稍候...');
     
     try {
+        // 构建提示词
+        const prompt = `基于以下用户需求，生成一个个性化的课程列表：\n\n1. 学习领域：${conversationState.answers[0]}\n2. 学习目标：${conversationState.answers[1]}\n3. 可用时间：${conversationState.answers[2]}\n\n请生成包含5-8个课程的列表，每个课程应包含：\n- 课程名称\n- 课程描述\n- 预计学习时长\n- 学习难度\n\n请使用JSON格式输出，例如：\n{"courses": [{"name": "课程1", "description": "描述1", "duration": "2小时", "difficulty": "入门"}, ...]}`;
+        
+        // 调用豆包API
         const response = await fetch(config.doubaoApiUrl, {
             method: 'POST',
             headers: {
@@ -305,1154 +191,157 @@ async function getNextQuestion() {
                 'Authorization': `Bearer ${config.doubaoApiKey}`
             },
             body: JSON.stringify({
-                model: config.doubaoModel, // 使用配置中的模型名称
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    ...conversation.slice(0, currentQuestion * 2 - 1) // 只传递当前轮次之前的对话
-                ],
-                max_tokens: 100,
+                model: config.doubaoModel,
+                messages: [{
+                    role: 'user',
+                    content: prompt
+                }],
+                max_tokens: 1500,
                 temperature: 0.7
             })
         });
         
         if (!response.ok) {
-            // API调用失败，抛出错误，由上层处理
-            const errorData = await response.json().catch(() => ({ message: 'API请求失败' }));
-            throw new Error(`API请求失败: ${response.status} ${response.statusText} - ${errorData.message || '未知错误'}`);
+            throw new Error(`API请求失败：${response.status}`);
         }
         
         const data = await response.json();
-        return data.choices[0].message.content;
-    } catch (error) {
-        console.error('豆包API请求失败:', error);
-        throw error; // 抛出错误，由上层处理
-    }
-}
-
-// 使用豆包API生成课程列表
-async function generateCoursesWithDoubao() {
-    // 准备提示词，替换对话历史占位符
-    const systemPrompt = prompts.generateCourses.replace('{conversation}', JSON.stringify(conversation, null, 2));
-    
-    addMessage('正在生成课程列表，请稍候...', 'bot');
-    
-    // 使用模拟数据
-    if (useMockData) {
-        await new Promise(resolve => setTimeout(resolve, 1000)); // 模拟网络延迟
-        
-        // 移除正在生成的消息
-        chatMessages.removeChild(chatMessages.lastChild);
-        
-        // 使用模拟课程数据
-        courses = mockResponses.courses.courses;
-        
-        // 显示生成结果
-        addMessage('根据您的回答，我为您生成了以下课程列表：', 'bot');
-        conversation.push({ role: 'bot', content: '根据您的回答，我为您生成了以下课程列表：' });
-        
-        // 显示课程容器
-        displayCourses();
-        return;
-    }
-    
-    try {
-        const response = await fetch(config.doubaoApiUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${config.doubaoApiKey}`
-            },
-            body: JSON.stringify({
-                model: config.doubaoModel, // 使用配置中的模型名称
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    ...conversation
-                ],
-                max_tokens: 500,
-                temperature: 0.7
-            })
-        });
-        
-        if (!response.ok) {
-            // API调用失败，抛出错误，由上层处理
-            const errorData = await response.json().catch(() => ({ message: 'API请求失败' }));
-            throw new Error(`API请求失败: ${response.status} ${response.statusText} - ${errorData.message || '未知错误'}`);
-        }
-        
-        const data = await response.json();
-        const botResponse = data.choices[0].message.content;
-        
-        // 移除正在生成的消息
-        chatMessages.removeChild(chatMessages.lastChild);
+        const aiResponse = data.choices[0].message.content;
         
         // 解析生成的课程列表
-        try {
-            console.log('开始解析课程数据...');
-            
-            // 首先尝试从表格中提取数据（最可靠的方式）
-            try {
-                console.log('尝试1: 从表格中提取课程数据（优先方式）');
-                const tableData = extractCoursesFromTable(botResponse);
-                if (tableData && tableData.length > 0) {
-                    console.log('成功从表格中提取了', tableData.length, '门课程');
-                    // 转换为原有格式
-                    courses = tableData.map((course) => ({
-                        title: course.courseName,
-                        description: course.courseDescription,
-                        targetAudience: course.difficulty,
-                        duration: '未知',
-                        module: course.module, // 保存表格中的module字段
-                        chapters: course.chapters
-                    }));
-                    
-                    // 显示生成结果
-                    addMessage('根据您的回答，我为您生成了以下课程列表：', 'bot');
-                    conversation.push({ role: 'assistant', content: '根据您的回答，我为您生成了以下课程列表：' });
-                    
-                    // 显示课程容器
-                    displayCourses();
-                    return;
-                }
-            } catch (e) {
-                console.error('表格解析失败，尝试JSON解析:', e);
-                console.error('表格解析错误详情:', e.stack);
-            }
-            
-            // 如果表格解析失败，再尝试JSON解析
-            let coursesData = null;
-            
-            // 尝试2: 精确查找JSON格式部分（从【JSON格式】标记开始）
-            try {
-                console.log('尝试2: 精确查找JSON格式部分');
-                const jsonFormatStart = botResponse.indexOf('【JSON格式】');
-                if (jsonFormatStart !== -1) {
-                    // 从JSON格式标记后开始查找第一个{和最后一个}
-                    const jsonStart = botResponse.indexOf('{', jsonFormatStart);
-                    const jsonEnd = botResponse.lastIndexOf('}');
-                    
-                    if (jsonStart !== -1 && jsonEnd !== -1 && jsonStart < jsonEnd) {
-                        let jsonStr = botResponse.substring(jsonStart, jsonEnd + 1);
-                        
-                        // 尝试直接解析
-                        try {
-                            coursesData = JSON.parse(jsonStr);
-                            if (coursesData.courses && Array.isArray(coursesData.courses)) {
-                                processCourseData(coursesData);
-                                return;
-                            }
-                        } catch (e) {
-                            console.error('直接解析JSON失败，尝试修复...');
-                        }
-                    }
-                }
-            } catch (e) {
-                console.error('JSON解析尝试2失败:', e);
-            }
-            
-            // 尝试3: 匹配包含"courses"的JSON结构，更宽松的匹配
-            try {
-                console.log('尝试3: 匹配包含"courses"的JSON结构');
-                const jsonRegex = /"courses"\s*:\s*\[[\s\S]*?\]/g;
-                const jsonMatches = botResponse.match(jsonRegex);
-                if (jsonMatches && jsonMatches.length > 0) {
-                    for (const match of jsonMatches) {
-                        // 构建完整的JSON对象
-                        const fullJsonStr = `{"courses": ${match.substring(match.indexOf('['))}}`;
-                        try {
-                            coursesData = JSON.parse(fullJsonStr);
-                            if (coursesData.courses && Array.isArray(coursesData.courses)) {
-                                processCourseData(coursesData);
-                                return;
-                            }
-                        } catch (innerE) {
-                            continue;
-                        }
-                    }
-                }
-            } catch (e) {
-                console.error('JSON解析尝试3失败:', e);
-            }
-            
-            // 所有尝试都失败
-            throw new Error('无法提取有效的课程数据');
-            
-        } catch (parseError) {
-            console.error('解析课程数据失败:', parseError);
-            console.error('解析错误详情:', parseError.stack);
-            console.log('原始响应:', botResponse);
-            addMessage('抱歉，生成课程列表失败，请稍后重试。', 'bot');
-        }
+        const courses = parseCourseList(aiResponse);
+        conversationState.courses = courses;
         
-        // 从表格中提取课程数据的辅助函数（改进版）
-        function extractCoursesFromTable(response) {
-            // 查找表格部分
-            const tableStart = response.indexOf('| 序号 |');
-            if (tableStart === -1) {
-                console.log('未找到表格开始标记');
-                return null;
-            }
-            
-            // 查找表格结束位置（在下一个标题或文件末尾）
-            const nextSectionStart = response.indexOf('【', tableStart + 1);
-            const tableEnd = nextSectionStart !== -1 ? nextSectionStart : response.length;
-            
-            // 提取完整表格内容
-            const tableContent = response.substring(tableStart, tableEnd);
-            
-            // 分割表格行，处理不同换行符
-            const lines = tableContent.split(/[\n\r]+/).filter(line => line.trim());
-            console.log('表格行数:', lines.length);
-            
-            if (lines.length < 4) { // 至少需要表头、分隔线、一行数据
-                console.log('表格行数不足，无法解析');
-                return null;
-            }
-            
-            // 跳过表头和分隔线，从第3行开始（索引2）
-            let courses = [];
-            for (let i = 2; i < lines.length; i++) {
-                const line = lines[i].trim();
-                if (!line || !line.startsWith('|')) {
-                    console.log('跳过无效行:', line);
-                    continue;
-                }
-                
-                // 分割列
-                const columns = line.split('|').map(col => col.trim()).filter(col => col.length > 0);
-                console.log('行', i, '列数:', columns.length, '内容:', columns);
-                
-                if (columns.length < 6) {
-                    console.log('列数不足，跳过该行');
-                    continue;
-                }
-                
-                // 提取课程信息
-                const serialNumber = parseInt(columns[0]);
-                const courseName = columns[1];
-                const courseDescription = columns[2];
-                const difficulty = columns[3];
-                const module = columns[4];
-                const chaptersStr = columns[5];
-                
-                // 解析章节
-                const chapters = [];
-                if (chaptersStr) {
-                    // 处理HTML换行符
-                    const chapterLines = chaptersStr.split(/<br>|\n/).filter(chap => chap.trim());
-                    console.log('章节行数:', chapterLines.length);
-                    
-                    for (const chapterLine of chapterLines) {
-                        const trimmedLine = chapterLine.trim();
-                        if (!trimmedLine) continue;
-                        
-                        // 尝试匹配章节格式：数字. 标题：核心目标
-                        const chapterMatch = trimmedLine.match(/^(\d+)\.\s*(.+?)\s*：\s*(.+)$/);
-                        if (chapterMatch) {
-                            chapters.push({
-                                title: chapterMatch[2],
-                                description: chapterMatch[3],
-                                duration: '未知'
-                            });
-                        } else {
-                            // 如果格式不匹配，尝试更宽松的匹配
-                            console.log('章节格式不匹配，尝试宽松匹配:', trimmedLine);
-                            const parts = trimmedLine.split('：');
-                            if (parts.length >= 2) {
-                                chapters.push({
-                                    title: parts[0].replace(/^\d+\.\s*/, '').trim(),
-                                    description: parts[1].trim(),
-                                    duration: '未知'
-                                });
-                            }
-                        }
-                    }
-                }
-                
-                // 添加到课程列表
-                courses.push({
-                    serialNumber,
-                    courseName,
-                    courseDescription,
-                    difficulty,
-                    module: module || '通用', // 使用表格中的所属模块，如果没有则使用通用
-                    chapters
-                });
-            }
-            
-            console.log('成功解析课程数量:', courses.length);
-            return courses;
-        }
+        // 显示课程列表
+        displayCourses(courses);
         
-        // 处理课程数据的辅助函数
-        function processCourseData(coursesData) {
-            // 将新格式转换为原有格式，确保兼容性
-                courses = coursesData.courses.map(course => ({
-                    title: course.courseName || course.title || '未命名课程',
-                    description: course.courseDescription || course.description || '暂无描述',
-                    targetAudience: course.difficulty || course.targetAudience || '适合所有水平',
-                    duration: course.duration || '未知',
-                    module: course.module || '通用', // 新增：保存AI生成的所属模块
-                    chapters: (course.chapters || []).map(chapter => ({
-                        title: chapter.title || '未命名章节',
-                        description: chapter.coreObjective || chapter.description || '暂无描述',
-                        duration: chapter.duration || '未知'
-                    }))
-                }));
-            
-            // 显示生成结果
-            addMessage('根据您的回答，我为您生成了以下课程列表：', 'bot');
-            conversation.push({ role: 'assistant', content: '根据您的回答，我为您生成了以下课程列表：' });
-            
-            // 显示课程容器
-            displayCourses();
-        }
+        // 更新聊天记录
+        addMessage('ai', '已为您生成个性化课程列表！您可以查看下方的课程，或选择同步到Notion。');
     } catch (error) {
-        // 移除正在生成的消息
-        chatMessages.removeChild(chatMessages.lastChild);
-        console.error('豆包API请求失败:', error);
-        
-        // 显示错误信息，不使用模拟数据
-        let errorMessage = '抱歉，生成课程列表失败。';
-        if (error.message) {
-            errorMessage += ` ${error.message}`;
+        console.error('生成课程列表失败:', error);
+        addMessage('ai', `生成课程列表失败：${error.message}`);
+    } finally {
+        conversationState.isProcessing = false;
+    }
+}
+
+// 解析课程列表
+function parseCourseList(responseText) {
+    try {
+        // 提取JSON部分
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            const coursesData = JSON.parse(jsonMatch[0]);
+            return coursesData.courses || [];
         }
-        addMessage(errorMessage, 'bot');
+        return [];
+    } catch (error) {
+        console.error('解析课程列表失败:', error);
+        return [];
     }
 }
 
 // 显示课程列表
-function displayCourses() {
-    coursesList.innerHTML = '';
+function displayCourses(courses) {
+    elements.courses.innerHTML = '';
     
     courses.forEach((course, index) => {
-        const courseItem = document.createElement('div');
-        courseItem.className = 'course-item';
+        const courseDiv = document.createElement('div');
+        courseDiv.className = 'course';
         
-        // 生成章节HTML
-        let chaptersHtml = '';
-        if (course.chapters && course.chapters.length > 0) {
-            chaptersHtml = `
-                <div class="chapters-section">
-                    <button class="toggle-chapters-btn">📋 查看章节 (${course.chapters.length})</button>
-                    <div class="chapters-list" style="display: none;">
-                        <h4>章节列表：</h4>
-                        <ul>
-                            ${course.chapters.map((chapter, chapIndex) => `
-                                <li class="chapter-item">
-                                    <h5>${chapIndex + 1}. ${chapter.title}</h5>
-                                    <p>${chapter.description}</p>
-                                    <p><small>预计时长：${chapter.duration}</small></p>
-                                </li>
-                            `).join('')}
-                        </ul>
-                    </div>
-                </div>
-            `;
-        }
-        
-        courseItem.innerHTML = `
-            <h3>${index + 1}. ${course.title}</h3>
-            <p><strong>描述：</strong>${course.description}</p>
-            <p><strong>适合人群：</strong>${course.targetAudience}</p>
-            <p><strong>预计时长：</strong>${course.duration}</p>
-            ${chaptersHtml}
+        courseDiv.innerHTML = `
+            <h3>${course.name || `课程${index + 1}`}</h3>
+            <p><strong>描述：</strong>${course.description || '无描述'}</p>
+            <p><strong>预计时长：</strong>${course.duration || '未指定'}</p>
+            <p><strong>难度：</strong>${course.difficulty || '未指定'}</p>
         `;
         
-        coursesList.appendChild(courseItem);
+        elements.courses.appendChild(courseDiv);
     });
     
-    // 添加折叠/展开功能
-    document.querySelectorAll('.toggle-chapters-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const chaptersList = btn.nextElementSibling;
-            const isVisible = chaptersList.style.display === 'block';
-            
-            if (isVisible) {
-                chaptersList.style.display = 'none';
-                btn.textContent = `📋 查看章节 (${chaptersList.querySelectorAll('.chapter-item').length})`;
-            } else {
-                chaptersList.style.display = 'block';
-                btn.textContent = '📋 隐藏章节';
-            }
-        });
-    });
-    
-    courseContainer.style.display = 'block';
+    elements.courseList.classList.remove('hidden');
 }
 
-// 同步课程到Notion（使用Cloudflare Worker代理）
+// 同步课程到Notion
 async function syncCoursesToNotion() {
-    syncToNotionBtn.disabled = true;
-    syncToNotionBtn.innerHTML = '<span class="loading"></span> 同步中...';
-    syncToNotionBtn.className = 'sync-btn';
+    if (conversationState.courses.length === 0) return;
     
-    // Cloudflare Worker代理URL（部署后替换为您的Worker URL）
-    // 部署说明：
-    // 1. 将notion-proxy-worker.js部署到Cloudflare Workers
-    // 2. 获取部署后的Worker URL
-    // 3. 将此处的URL替换为您的Worker URL
-    //const NOTION_PROXY_URL = 'https://notion-proxy.your-account.workers.dev';
-    const NOTION_PROXY_URL = 'https://notion-proxy.timbabys80.workers.dev';
-
+    elements.syncToNotion.disabled = true;
+    elements.syncToNotion.textContent = '同步中...';
+    
     try {
-        // 发送请求到Cloudflare Worker代理
-        const response = await fetch(NOTION_PROXY_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                courses: courses,
-                notionApiToken: config.notionApiToken,
-                notionDatabaseId: config.notionDatabaseId
-            })
-        });
-        
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: '同步失败' }));
-            throw new Error(`同步失败：${errorData.error || '未知错误'}`);
+        // 构建Notion页面数据
+        for (const course of conversationState.courses) {
+            await createNotionPage(course);
         }
         
-        const result = await response.json();
-        
-        // 显示成功消息
-        syncToNotionBtn.innerHTML = `同步成功 (${result.successCount}/${result.total})`;
-        syncToNotionBtn.className = 'sync-btn success';
-        
-        // 添加聊天消息
-        addMessage(`课程列表已成功同步到Notion！共同步${result.successCount}门课程，总计${result.total}门课程。`, 'bot');
+        addMessage('ai', '课程列表已成功同步到Notion！');
     } catch (error) {
         console.error('同步到Notion失败:', error);
-        syncToNotionBtn.innerHTML = '同步失败';
-        syncToNotionBtn.className = 'sync-btn error';
-        addMessage(`抱歉，同步到Notion失败：${error.message}`, 'bot');
+        addMessage('ai', `同步到Notion失败：${error.message}`);
     } finally {
-        // 3秒后恢复按钮状态
-        setTimeout(() => {
-            syncToNotionBtn.disabled = false;
-            syncToNotionBtn.innerHTML = '同步到Notion';
-            syncToNotionBtn.className = 'sync-btn';
-        }, 3000);
+        elements.syncToNotion.disabled = false;
+        elements.syncToNotion.textContent = '同步到Notion';
     }
 }
 
-/*
-hhhhh
-Cloudflare Worker部署说明：
-1. 登录Cloudflare控制台
-2. 选择Workers & Pages
-3. 创建一个新的Worker
-4. 将notion-proxy-worker.js脚本粘贴到编辑器中
-5. 修改ALLOWED_ORIGINS数组，添加您的GitHub Pages域名
-6. 点击"部署"按钮
-7. 部署后，获取Worker的URL
-8. 将syncCoursesToNotion函数中的NOTION_PROXY_URL替换为您的Worker URL
-
-注意事项：
-- 确保Notion API Token具有对目标数据库的写入权限
-- 确保Notion数据库包含所需的属性（Name, Description, Status, Target Audience, Duration）
-- 首次使用前，需要在Notion中邀请您的Integration访问目标数据库
-*/
-    
-// 学习功能模块 - DOM元素
-const learningChatMessages = document.getElementById('learningChatMessages');
-const learningInput = document.getElementById('learningInput');
-const sendLearningBtn = document.getElementById('sendLearningBtn');
-const stopLearningBtn = document.getElementById('stopLearningBtn');
-const courseSelect = document.getElementById('courseSelect');
-const chapterSelect = document.getElementById('chapterSelect');
-const confirmModal = document.getElementById('confirmModal');
-const confirmStopBtn = document.getElementById('confirmStopBtn');
-const cancelStopBtn = document.getElementById('cancelStopBtn');
-
-// 学习功能模块 - 全局变量
-let availableCourses = []; // 从Notion获取的课程列表
-let currentCourse = '';
-let currentChapter = '';
-let learningMessages = []; // 学习对话记录
-
-// 学习功能模块 - 初始化
-async function initLearningModule() {
-    // 添加事件监听器
-    sendLearningBtn.addEventListener('click', sendLearningMessage);
-    learningInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            sendLearningMessage();
-        }
-    });
-    stopLearningBtn.addEventListener('click', showConfirmModal);
-    confirmStopBtn.addEventListener('click', syncLearningToNotion);
-    cancelStopBtn.addEventListener('click', hideConfirmModal);
-    courseSelect.addEventListener('change', handleCourseChange);
-    chapterSelect.addEventListener('change', handleChapterChange);
-    
-    // 从Notion拉取课程列表
-    await fetchCoursesFromNotion();
-}
-
-// 从Notion拉取课程列表
-async function fetchCoursesFromNotion() {
-    try {
-        // 显示加载状态
-        addLearningMessage('正在从Notion加载课程列表...', 'ai');
-        
-        // 调用Serverless函数拉取课程列表
-        const response = await fetch('/api/getCourseList');
-        const result = await response.json();
-        
-        if (result.success) {
-            availableCourses = result.courses;
-            
-            // 清空并填充课程下拉框
-            courseSelect.innerHTML = '<option value="">请选择课程</option>';
-            availableCourses.forEach(course => {
-                const option = document.createElement('option');
-                option.value = course.courseName;
-                option.textContent = course.courseName;
-                courseSelect.appendChild(option);
-            });
-            
-            // 启用课程下拉框
-            courseSelect.disabled = false;
-            
-            // 移除加载状态消息
-            learningChatMessages.removeChild(learningChatMessages.lastChild);
-            addLearningMessage('课程列表加载完成，请选择课程开始学习。', 'ai');
-        } else {
-            addLearningMessage(`加载课程列表失败: ${result.message}`, 'ai');
-        }
-    } catch (error) {
-        console.error('拉取课程列表失败:', error);
-        addLearningMessage(`加载课程列表失败: ${error.message}`, 'ai');
-    }
-}
-
-// 处理课程选择变化
-function handleCourseChange() {
-    const selectedCourseName = courseSelect.value;
-    currentCourse = selectedCourseName;
-    
-    // 清空章节下拉框
-    chapterSelect.innerHTML = '<option value="">请选择章节</option>';
-    chapterSelect.disabled = true;
-    
-    // 清空学习对话
-    learningChatMessages.innerHTML = '';
-    learningMessages = [];
-    
-    // 禁用学习输入
-    learningInput.disabled = true;
-    sendLearningBtn.disabled = true;
-    stopLearningBtn.disabled = true;
-    
-    if (selectedCourseName) {
-        // 查找选中课程的章节
-        const selectedCourse = availableCourses.find(course => course.courseName === selectedCourseName);
-        if (selectedCourse && selectedCourse.chapters.length > 0) {
-            // 填充章节下拉框
-            selectedCourse.chapters.forEach(chapter => {
-                const option = document.createElement('option');
-                option.value = chapter.chapterName;
-                option.textContent = chapter.chapterName;
-                // 保存章节核心目标到option元素上，方便后续使用
-                option.dataset.coreGoal = chapter.coreGoal;
-                chapterSelect.appendChild(option);
-            });
-            
-            // 启用章节下拉框
-            chapterSelect.disabled = false;
-            
-            addLearningMessage(`您选择了课程：${selectedCourseName}，请继续选择章节。`, 'ai');
-        } else {
-            addLearningMessage(`课程 ${selectedCourseName} 暂无章节，请联系管理员添加。`, 'ai');
-        }
-    }
-}
-
-// 处理章节选择变化
-function handleChapterChange() {
-    const selectedChapterName = chapterSelect.value;
-    currentChapter = selectedChapterName;
-    
-    if (selectedChapterName) {
-        // 获取章节核心目标
-        const selectedChapter = chapterSelect.options[chapterSelect.selectedIndex];
-        const coreGoal = selectedChapter.dataset.coreGoal;
-        
-        // 启用学习输入
-        learningInput.disabled = false;
-        sendLearningBtn.disabled = false;
-        
-        addLearningMessage(`您选择了章节：${selectedChapterName}，核心目标：${coreGoal}。现在可以开始学习对话了。`, 'ai');
-    } else {
-        // 禁用学习输入
-        learningInput.disabled = true;
-        sendLearningBtn.disabled = true;
-        stopLearningBtn.disabled = true;
-    }
-}
-
-// 发送学习消息
-async function sendLearningMessage() {
-    const message = learningInput.value.trim();
-    if (!message || !currentCourse || !currentChapter) return;
-    
-    // 添加用户消息
-    addLearningMessage(message, 'user');
-    learningMessages.push({ role: 'user', content: message });
-    learningInput.value = '';
-    
-    // 禁用输入和发送按钮
-    sendLearningBtn.disabled = true;
-    learningInput.disabled = true;
-    
-    try {
-        // 调用Serverless函数与AI对话
-        const response = await fetch('/api/chatWithAI', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
+// 创建Notion页面
+async function createNotionPage(course) {
+    const response = await fetch('https://api.notion.com/v1/pages', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${config.notionApiToken}`,
+            'Content-Type': 'application/json',
+            'Notion-Version': '2022-06-28'
+        },
+        body: JSON.stringify({
+            parent: {
+                database_id: config.notionDatabaseId
             },
-            body: JSON.stringify({
-                courseName: currentCourse,
-                chapterName: currentChapter,
-                userInput: message
-            })
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            // 添加AI回复
-            addLearningMessage(result.aiResponse, 'ai');
-            learningMessages.push({ role: 'ai', content: result.aiResponse });
-            
-            // 启用停止学习按钮
-            stopLearningBtn.disabled = false;
-        } else {
-            addLearningMessage(`AI回复失败: ${result.message}`, 'ai');
-        }
-    } catch (error) {
-        console.error('发送学习消息失败:', error);
-        addLearningMessage(`发送消息失败: ${error.message}`, 'ai');
-    } finally {
-        // 启用输入和发送按钮
-        sendLearningBtn.disabled = false;
-        learningInput.disabled = false;
-    }
-}
-
-// 添加学习消息到聊天界面
-function addLearningMessage(content, sender) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${sender}`;
-    messageDiv.innerHTML = `<p>${content}</p>`;
-    learningChatMessages.appendChild(messageDiv);
-    learningChatMessages.scrollTop = learningChatMessages.scrollHeight;
-}
-
-// 显示确认停止学习弹窗
-function showConfirmModal() {
-    confirmModal.style.display = 'flex';
-}
-
-// 隐藏确认停止学习弹窗
-function hideConfirmModal() {
-    confirmModal.style.display = 'none';
-}
-
-// 同步学习记录到Notion
-async function syncLearningToNotion() {
-    try {
-        // 显示同步状态
-        addLearningMessage('正在将学习记录同步到Notion...', 'ai');
-        
-        // 调用Serverless函数同步到Notion
-        const response = await fetch('/api/syncToNotion', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                courseName: currentCourse,
-                chapterName: currentChapter
-            })
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            addLearningMessage('学习记录已成功同步到Notion！', 'ai');
-            
-            // 重置学习状态
-            resetLearningState();
-        } else {
-            addLearningMessage(`同步失败: ${result.message}`, 'ai');
-        }
-    } catch (error) {
-        console.error('同步学习记录失败:', error);
-        addLearningMessage(`同步失败: ${error.message}`, 'ai');
-    } finally {
-        // 隐藏确认弹窗
-        hideConfirmModal();
-    }
-}
-
-// 重置学习状态
-function resetLearningState() {
-    // 清空当前选择
-    currentCourse = '';
-    currentChapter = '';
-    learningMessages = [];
-    
-    // 重置UI状态
-    chapterSelect.innerHTML = '<option value="">请选择章节</option>';
-    chapterSelect.disabled = true;
-    learningInput.disabled = true;
-    sendLearningBtn.disabled = true;
-    stopLearningBtn.disabled = true;
-    
-    // 清空学习对话
-    learningChatMessages.innerHTML = '';
-    
-    addLearningMessage('学习已结束，您可以选择新的课程继续学习。', 'ai');
-}
-
-// 在原有初始化函数中添加学习模块初始化
-async function initializeApp() {
-    // 添加事件监听器
-    sendBtn.addEventListener('click', sendMessage);
-    userInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            sendMessage();
-        }
-    });
-    syncToNotionBtn.addEventListener('click', syncCoursesToNotion);
-    
-    // 加载所有提示词
-    await loadPrompts();
-    
-    // 显示初始问题
-    displayInitialQuestion();
-    
-    // 初始化学习功能模块
-    initLearningModule();
-}
-
-// Tab切换功能
-function initTabSwitching() {
-    const tabBtns = document.querySelectorAll('.tab-btn');
-    const tabPanels = document.querySelectorAll('.tab-panel');
-    
-    tabBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            // 移除所有激活状态
-            tabBtns.forEach(b => b.classList.remove('active'));
-            tabPanels.forEach(p => p.classList.remove('active'));
-            
-            // 添加当前激活状态
-            const tabId = btn.dataset.tab;
-            btn.classList.add('active');
-            document.getElementById(tabId).classList.add('active');
-            
-            // 如果切换到课程学习Tab，加载课程列表和最近学习记录
-            if (tabId === 'course-learning') {
-                initLearningModule();
+            properties: {
+                'Name': {
+                    title: [{
+                        text: {
+                            content: course.name
+                        }
+                    }]
+                },
+                'Description': {
+                    rich_text: [{
+                        text: {
+                            content: course.description
+                        }
+                    }]
+                },
+                'Status': {
+                    select: {
+                        name: '待学习'
+                    }
+                }
             }
-        });
+        })
     });
-}
-
-// 学习功能模块 - 全局变量
-let availableCourses = []; // 从Notion获取的课程列表
-let currentCourse = '';
-let currentChapter = '';
-let learningMessages = []; // 学习对话记录
-let lastLearnRecord = null; // 最近学习记录，用于断点续学
-
-// 学习功能模块 - 初始化
-async function initLearningModule() {
-    // 如果已经初始化过，直接返回
-    if (availableCourses.length > 0 && lastLearnRecord) {
-        return;
-    }
     
-    // 添加事件监听器
-    sendLearningBtn.addEventListener('click', sendLearningMessage);
-    learningInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendLearningMessage();
-        }
-    });
-    stopLearningBtn.addEventListener('click', showConfirmModal);
-    confirmStopBtn.addEventListener('click', syncLearningToNotion);
-    cancelStopBtn.addEventListener('click', hideConfirmModal);
-    courseSelect.addEventListener('change', handleCourseChange);
-    chapterSelect.addEventListener('change', handleChapterChange);
-    continueBtn.addEventListener('click', continueLastLearning);
-    restartBtn.addEventListener('click', restartLearning);
-    
-    // 从Notion拉取课程列表和最近学习记录（并行调用，提高效率）
-    const [coursesResult, lastRecordResult] = await Promise.all([
-        fetchCoursesFromNotion(),
-        fetchLastLearnRecord()
-    ]);
-    
-    // 处理最近学习记录
-    if (lastRecordResult.hasLastRecord) {
-        lastLearnRecord = lastRecordResult;
-        showContinuePrompt();
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Notion API错误：${errorData.message || response.statusText}`);
     }
 }
 
-// 从Notion获取最近学习记录
-async function fetchLastLearnRecord() {
-    try {
-        // 注意：请将API地址替换为您部署后的实际地址
-        // 例如：https://your-project.vercel.app/api/getLastLearnRecord
-        const API_BASE_URL = 'https://your-deployed-api-url.com/api';
-        
-        // 调用Serverless函数获取最近学习记录
-        const response = await fetch(`${API_BASE_URL}/getLastLearnRecord`);
-        const result = await response.json();
-        return result;
-    } catch (error) {
-        console.error('获取最近学习记录失败:', error);
-        return {
-            hasLastRecord: false,
-            courseName: '',
-            chapterName: '',
-            lastChatTime: '',
-            lastChatContext: []
-        };
-    }
+// 重新生成课程
+async function regenerateCourses() {
+    conversationState.courses = [];
+    elements.courseList.classList.add('hidden');
+    await generateCourseList();
 }
 
-// 显示断点续学提示
-function showContinuePrompt() {
-    const lastCourseChapter = document.getElementById('lastCourseChapter');
-    const continuePrompt = document.getElementById('continueLearningPrompt');
+// 重置对话
+function resetConversation() {
+    if (conversationState.isProcessing) return;
     
-    lastCourseChapter.textContent = `${lastLearnRecord.courseName}-${lastLearnRecord.chapterName}`;
-    continuePrompt.style.display = 'block';
-}
-
-// 隐藏断点续学提示
-function hideContinuePrompt() {
-    const continuePrompt = document.getElementById('continueLearningPrompt');
-    continuePrompt.style.display = 'none';
-}
-
-// 继续上次学习
-function continueLastLearning() {
-    // 自动选中对应课程
-    const courseSelect = document.getElementById('courseSelect');
-    for (let i = 0; i < courseSelect.options.length; i++) {
-        if (courseSelect.options[i].value === lastLearnRecord.courseName) {
-            courseSelect.selectedIndex = i;
-            handleCourseChange();
-            break;
-        }
-    }
-    
-    // 短暂延迟后选中对应章节
-    setTimeout(() => {
-        const chapterSelect = document.getElementById('chapterSelect');
-        for (let i = 0; i < chapterSelect.options.length; i++) {
-            if (chapterSelect.options[i].value === lastLearnRecord.chapterName) {
-                chapterSelect.selectedIndex = i;
-                handleChapterChange();
-                break;
-            }
-        }
-        
-        // 渲染历史对话
-        if (lastLearnRecord.lastChatContext && lastLearnRecord.lastChatContext.length > 0) {
-            lastLearnRecord.lastChatContext.forEach(msg => {
-                addLearningMessage(msg.content, msg.role);
-            });
-        }
-        
-        // 隐藏提示
-        hideContinuePrompt();
-    }, 500);
-}
-
-// 重新开始学习
-function restartLearning() {
-    hideContinuePrompt();
-    resetLearningState();
-}
-
-// 从Notion拉取课程列表
-async function fetchCoursesFromNotion() {
-    try {
-        // 显示加载状态
-        addLearningMessage('正在从Notion加载课程列表...', 'ai');
-        
-        // 注意：请将API地址替换为您部署后的实际地址
-        // 例如：https://your-project.vercel.app/api
-        const API_BASE_URL = 'https://your-deployed-api-url.com/api';
-        
-        // 调用Serverless函数拉取课程列表
-        const response = await fetch(`${API_BASE_URL}/getCourseList`);
-        const result = await response.json();
-        
-        if (result.success) {
-            availableCourses = result.courses;
-            
-            // 清空并填充课程下拉框
-            courseSelect.innerHTML = '<option value="">请选择课程</option>';
-            availableCourses.forEach(course => {
-                const option = document.createElement('option');
-                option.value = course.courseName;
-                option.textContent = course.courseName;
-                courseSelect.appendChild(option);
-            });
-            
-            // 启用课程下拉框
-            courseSelect.disabled = false;
-            
-            // 移除加载状态消息
-            learningChatMessages.removeChild(learningChatMessages.lastChild);
-            addLearningMessage('课程列表加载完成，请选择课程开始学习。', 'ai');
-        } else {
-            addLearningMessage(`加载课程列表失败: ${result.message}`, 'ai');
-        }
-        
-        return result;
-    } catch (error) {
-        console.error('拉取课程列表失败:', error);
-        addLearningMessage(`加载课程列表失败: ${error.message}`, 'ai');
-        return { success: false, message: error.message };
-    }
-}
-
-// 处理课程选择变化
-function handleCourseChange() {
-    const selectedCourseName = courseSelect.value;
-    currentCourse = selectedCourseName;
-    
-    // 清空章节下拉框
-    chapterSelect.innerHTML = '<option value="">请选择章节</option>';
-    chapterSelect.disabled = true;
-    
-    // 清空学习对话
-    learningChatMessages.innerHTML = '';
-    learningMessages = [];
-    
-    // 禁用学习输入
-    learningInput.disabled = true;
-    sendLearningBtn.disabled = true;
-    stopLearningBtn.disabled = true;
-    
-    if (selectedCourseName) {
-        // 查找选中课程的章节
-        const selectedCourse = availableCourses.find(course => course.courseName === selectedCourseName);
-        if (selectedCourse && selectedCourse.chapters.length > 0) {
-            // 填充章节下拉框
-            selectedCourse.chapters.forEach(chapter => {
-                const option = document.createElement('option');
-                option.value = chapter.chapterName;
-                option.textContent = chapter.chapterName;
-                // 保存章节核心目标到option元素上，方便后续使用
-                option.dataset.coreGoal = chapter.coreGoal;
-                chapterSelect.appendChild(option);
-            });
-            
-            // 启用章节下拉框
-            chapterSelect.disabled = false;
-            
-            addLearningMessage(`您选择了课程：${selectedCourseName}，请继续选择章节。`, 'ai');
-        } else {
-            addLearningMessage(`课程 ${selectedCourseName} 暂无章节，请联系管理员添加。`, 'ai');
-        }
-    }
-}
-
-// 处理章节选择变化
-function handleChapterChange() {
-    const selectedChapterName = chapterSelect.value;
-    currentChapter = selectedChapterName;
-    
-    if (selectedChapterName) {
-        // 获取章节核心目标
-        const selectedChapter = chapterSelect.options[chapterSelect.selectedIndex];
-        const coreGoal = selectedChapter.dataset.coreGoal;
-        
-        // 启用学习输入
-        learningInput.disabled = false;
-        sendLearningBtn.disabled = false;
-        
-        addLearningMessage(`您选择了章节：${selectedChapterName}，核心目标：${coreGoal}。现在可以开始学习对话了。`, 'ai');
-    } else {
-        // 禁用学习输入
-        learningInput.disabled = true;
-        sendLearningBtn.disabled = true;
-        stopLearningBtn.disabled = true;
-    }
-}
-
-// 发送学习消息
-async function sendLearningMessage() {
-    const message = learningInput.value.trim();
-    if (!message || !currentCourse || !currentChapter) return;
-    
-    // 添加用户消息
-    addLearningMessage(message, 'user');
-    learningMessages.push({ role: 'user', content: message });
-    learningInput.value = '';
-    
-    // 禁用输入和发送按钮
-    sendLearningBtn.disabled = true;
-    learningInput.disabled = true;
-    
-    try {
-        // 构建请求体，包含历史上下文
-        const requestBody = {
-            courseName: currentCourse,
-            chapterName: currentChapter,
-            userInput: message,
-            lastChatContext: learningMessages.slice(-10) // 只发送最近10条消息，避免上下文过长
-        };
-        
-        // 注意：请将API地址替换为您部署后的实际地址
-        // 例如：https://your-project.vercel.app/api
-        const API_BASE_URL = 'https://your-deployed-api-url.com/api';
-        
-        // 调用Serverless函数与AI对话
-        const response = await fetch(`${API_BASE_URL}/chatWithAI`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(requestBody)
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            // 添加AI回复
-            addLearningMessage(result.aiResponse, 'ai');
-            learningMessages.push({ role: 'ai', content: result.aiResponse });
-            
-            // 启用停止学习按钮
-            stopLearningBtn.disabled = false;
-        } else {
-            addLearningMessage(`AI回复失败: ${result.message}`, 'ai');
-        }
-    } catch (error) {
-        console.error('发送学习消息失败:', error);
-        addLearningMessage(`发送消息失败: ${error.message}`, 'ai');
-    } finally {
-        // 启用输入和发送按钮
-        sendLearningBtn.disabled = false;
-        learningInput.disabled = false;
-    }
-}
-
-// 添加学习消息到聊天界面
-function addLearningMessage(content, sender) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${sender}`;
-    messageDiv.innerHTML = `<p>${content}</p>`;
-    learningChatMessages.appendChild(messageDiv);
-    learningChatMessages.scrollTop = learningChatMessages.scrollHeight;
-}
-
-// 显示确认停止学习弹窗
-function showConfirmModal() {
-    confirmModal.style.display = 'flex';
-}
-
-// 隐藏确认停止学习弹窗
-function hideConfirmModal() {
-    confirmModal.style.display = 'none';
-}
-
-// 同步学习记录到Notion
-async function syncLearningToNotion() {
-    try {
-        // 显示同步状态
-        addLearningMessage('正在将学习记录同步到Notion...', 'ai');
-        
-        // 注意：请将API地址替换为您部署后的实际地址
-        // 例如：https://your-project.vercel.app/api
-        const API_BASE_URL = 'https://your-deployed-api-url.com/api';
-        
-        // 调用Serverless函数同步到Notion
-        const response = await fetch(`${API_BASE_URL}/syncToNotion`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                courseName: currentCourse,
-                chapterName: currentChapter
-            })
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            addLearningMessage('学习记录已成功同步到Notion！', 'ai');
-            
-            // 重置学习状态
-            resetLearningState();
-        } else {
-            addLearningMessage(`同步失败: ${result.message}`, 'ai');
-        }
-    } catch (error) {
-        console.error('同步学习记录失败:', error);
-        addLearningMessage(`同步失败: ${error.message}`, 'ai');
-    } finally {
-        // 隐藏确认弹窗
-        hideConfirmModal();
-    }
-}
-
-// 重置学习状态
-function resetLearningState() {
-    // 清空当前选择
-    currentCourse = '';
-    currentChapter = '';
-    learningMessages = [];
-    lastLearnRecord = null;
-    
-    // 重置UI状态
-    chapterSelect.innerHTML = '<option value="">请选择章节</option>';
-    chapterSelect.disabled = true;
-    learningInput.disabled = true;
-    sendLearningBtn.disabled = true;
-    stopLearningBtn.disabled = true;
-    
-    // 清空学习对话
-    learningChatMessages.innerHTML = '';
-    
-    addLearningMessage('学习已结束，您可以选择新的课程继续学习。', 'ai');
-}
-
-// 在原有初始化函数中添加Tab切换初始化
-async function initializeApp() {
-    // 添加事件监听器
-    sendBtn.addEventListener('click', sendMessage);
-    userInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            sendMessage();
-        }
-    });
-    syncToNotionBtn.addEventListener('click', syncCoursesToNotion);
-    
-    // 初始化Tab切换
-    initTabSwitching();
-    
-    // 加载所有提示词
-    await loadPrompts();
-    
-    // 显示初始问题
-    displayInitialQuestion();
+    elements.courseList.classList.add('hidden');
+    startConversation();
 }
 
 // 页面加载完成后初始化
-window.addEventListener('DOMContentLoaded', init);
+window.addEventListener('DOMContentLoaded', initApp);
