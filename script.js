@@ -19,12 +19,8 @@ let conversationState = {
     isProcessing: false
 };
 
-// 问题列表
-const questions = [
-    "您想学习什么领域的知识？",
-    "您的学习目标是什么？",
-    "您每天可以投入多少时间学习？"
-];
+// 问题列表，将从prompt文件加载
+let questions = [];
 
 // DOM元素
 const elements = {
@@ -72,8 +68,36 @@ let learningState = {
     notionLearningDatabaseId: '2e43af348d5780fd9b8ed286eba4c996' // 学习记录表数据库ID
 };
 
+// 加载所有提示词文件
+async function loadAllPrompts() {
+    try {
+        // 加载三轮对话的提示词
+        const prompt1 = await loadPromptFile('prompt1');
+        const prompt2 = await loadPromptFile('prompt2');
+        const prompt3 = await loadPromptFile('prompt3');
+        
+        // 更新questions数组
+        questions = [prompt1, prompt2, prompt3];
+        
+        console.log('提示词文件加载成功');
+        return true;
+    } catch (error) {
+        console.error('加载提示词文件失败:', error);
+        // 如果加载失败，使用默认问题
+        questions = [
+            "您想学习什么领域的知识？",
+            "您的学习目标是什么？",
+            "您每天可以投入多少时间学习？"
+        ];
+        return false;
+    }
+}
+
 // 初始化应用
-function initApp() {
+async function initApp() {
+    // 加载提示词文件
+    await loadAllPrompts();
+    
     // 检查是否有配置
     const savedConfig = localStorage.getItem('aiLearningAssistantConfig');
     if (savedConfig) {
@@ -724,6 +748,11 @@ async function handleConfigSubmit(e) {
     // 隐藏配置弹窗
     elements.configModal.style.display = 'none';
     
+    // 确保提示词已经加载，如果没有加载则重新加载
+    if (questions.length === 0) {
+        await loadAllPrompts();
+    }
+    
     // 开始对话
     startConversation();
     loadCourses();
@@ -827,7 +856,7 @@ async function generateCourseList() {
     
     try {
         // 构建提示词
-        const prompt = `基于以下用户需求，生成一个个性化的课程列表：\n\n1. 学习领域：${conversationState.answers[0]}\n2. 学习目标：${conversationState.answers[1]}\n3. 可用时间：${conversationState.answers[2]}\n\n请生成包含5-8个课程的列表，每个课程应包含：\n- 课程名称\n- 课程描述\n- 预计学习时长\n- 学习难度\n\n请使用JSON格式输出，例如：\n{"courses": [{"name": "课程1", "description": "描述1", "duration": "2小时", "difficulty": "入门"}, ...]}`;
+        const prompt = `基于以下用户需求，生成一个个性化的课程列表：\n\n1. 学习领域：${conversationState.answers[0]}\n2. 学习目标：${conversationState.answers[1]}\n3. 可用时间：${conversationState.answers[2]}\n\n请生成包含5-8个课程的列表，每个课程应包含：\n- 课程名称\n- 课程描述\n- 预计学习时长\n- 学习难度\n- 章节列表：每个课程应包含3-5个章节，每个章节包含章节名称和章节描述\n\n请使用JSON格式输出，例如：\n{"courses": [{"name": "课程1", "description": "描述1", "duration": "2小时", "difficulty": "入门", "chapters": [{"name": "章节1", "description": "章节描述1"}, ...]}, ...]}`;
         
         // 调用豆包API
         const response = await fetch(config.doubaoApiUrl, {
@@ -895,11 +924,22 @@ function displayCourses(courses) {
         const courseDiv = document.createElement('div');
         courseDiv.className = 'course';
         
+        // 生成章节列表HTML
+        let chaptersHtml = '';
+        if (course.chapters && course.chapters.length > 0) {
+            chaptersHtml = '<div class="chapters"><h4>章节列表：</h4><ul>';
+            course.chapters.forEach((chapter, chapIndex) => {
+                chaptersHtml += `<li><strong>${chapter.name || `章节${chapIndex + 1}`}</strong>：${chapter.description || '无描述'}</li>`;
+            });
+            chaptersHtml += '</ul></div>';
+        }
+        
         courseDiv.innerHTML = `
             <h3>${course.name || `课程${index + 1}`}</h3>
             <p><strong>描述：</strong>${course.description || '无描述'}</p>
             <p><strong>预计时长：</strong>${course.duration || '未指定'}</p>
             <p><strong>难度：</strong>${course.difficulty || '未指定'}</p>
+            ${chaptersHtml}
         `;
         
         elements.courses.appendChild(courseDiv);
@@ -929,7 +969,8 @@ async function syncCoursesToNotion() {
                         title: course.name,
                         description: course.description || '',
                         targetAudience: course.targetAudience || '',
-                        duration: course.duration || ''
+                        duration: course.duration || '',
+                        chapters: course.chapters || []
                     })),
                     notionApiToken: config.notionApiToken,
                     notionDatabaseId: config.notionDatabaseId
@@ -993,6 +1034,13 @@ async function createNotionPage(course) {
                     select: {
                         name: '待学习'
                     }
+                },
+                '章节列表': {
+                    rich_text: [{
+                        text: {
+                            content: course.chapters ? course.chapters.map(chap => `${chap.name}: ${chap.description}`).join('\n') : ''
+                        }
+                    }]
                 }
             }
         })
