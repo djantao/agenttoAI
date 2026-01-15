@@ -202,7 +202,7 @@ async function getCoursesFromNotion() {
                 return data.courses;
             } else if (data.results && Array.isArray(data.results)) {
                 // 如果代理返回的是Notion API原始格式
-                console.log('解析Notion API原始格式数据，结果数量:', data.results.length);
+                console.log('解析Notion API原始格式数据结果数量:', data.results.length);
                 const courses = data.results.map((page, index) => {
                     console.log(`课程${index + 1}的properties:`, page.properties);
                     console.log(`课程${index + 1}的"课程名称"字段:`, page.properties['课程名称']);
