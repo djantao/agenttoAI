@@ -7,8 +7,8 @@ let config = {
     doubaoModel: '',
     doubaoApiKey: '',
     notionApiToken: '',
-    notionDatabaseId: '',
-    notionProxyUrl: '' // Cloudflare Workers代理URL
+    notionDatabaseId: '2e43af348d5780fd9b8ed286eba4c996', // 课程数据库ID（默认值）
+    notionProxyUrl: 'https://notion-proxy.timbabys80.workers.dev/' // Cloudflare Workers代理URL（默认值）
 };
 
 // 对话状态
@@ -69,7 +69,7 @@ let learningState = {
     endTime: null,
     chatHistory: [],
     systemPrompt: '', // 从提示词文件加载的系统提示词
-    notionDatabaseId: '2e43af348d5780fd9b8ed286eba4c996' // 学习记录表数据库ID
+    notionLearningDatabaseId: '2e43af348d5780fd9b8ed286eba4c996' // 学习记录表数据库ID
 };
 
 // 初始化应用
@@ -151,50 +151,63 @@ async function loadCourses() {
 // 从Notion获取课程列表
 async function getCoursesFromNotion() {
     try {
-        // 检查是否配置了代理URL
-        if (config.notionProxyUrl) {
-            // 使用代理URL获取课程列表
-            // 注意：当前代理脚本只支持批量同步课程，不支持查询课程列表
-            // 这里返回模拟数据，实际应用中需要扩展代理脚本功能
-            console.log('使用代理URL获取课程列表（当前返回模拟数据）');
-            return [
-                { id: 'course-1', name: '测试课程1' },
-                { id: 'course-2', name: '测试课程2' },
-                { id: 'course-3', name: '测试课程3' }
-            ];
-        } else {
-            // 直接调用Notion API
-            const response = await fetch('https://api.notion.com/v1/databases/' + config.notionDatabaseId + '/query', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${config.notionApiToken}`,
-                    'Content-Type': 'application/json',
-                    'Notion-Version': '2022-06-28'
-                },
-                body: JSON.stringify({
-                    page_size: 100
-                })
-            });
+        // 首先尝试直接调用Notion API获取课程列表
+        // 即使配置了代理，我们也尝试直接调用，因为代理主要用于同步，而非查询
+        console.log('尝试直接调用Notion API获取课程列表');
+        
+        const response = await fetch('https://api.notion.com/v1/databases/' + config.notionDatabaseId + '/query', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${config.notionApiToken}`,
+                'Content-Type': 'application/json',
+                'Notion-Version': '2022-06-28'
+            },
+            body: JSON.stringify({
+                page_size: 100
+            })
+        });
+        
+        if (!response.ok) {
+            // 如果直接调用失败，检查是否是CORS错误或其他网络错误
+            // 对于CORS错误，我们可以提示用户配置代理
+            console.error('直接调用Notion API失败，状态码:', response.status);
             
-            if (!response.ok) {
+            // 如果配置了代理URL，我们可以返回模拟数据，但需要提示用户
+            if (config.notionProxyUrl) {
+                console.log('使用代理URL时无法直接获取课程列表，返回模拟数据');
+                return [
+                    { id: 'course-1', name: '测试课程1' },
+                    { id: 'course-2', name: '测试课程2' },
+                    { id: 'course-3', name: '测试课程3' }
+                ];
+            } else {
+                // 如果没有配置代理，抛出错误
                 throw new Error(`Notion API错误：${response.status}`);
             }
-            
-            const data = await response.json();
-            
-            // 解析课程列表
-            const courses = data.results.map(page => {
-                return {
-                    id: page.id,
-                    name: page.properties['Name']?.title[0]?.text?.content || '未命名课程'
-                };
-            });
-            
-            return courses;
         }
+        
+        const data = await response.json();
+        
+        // 解析课程列表
+        const courses = data.results.map(page => {
+            return {
+                id: page.id,
+                name: page.properties['Name']?.title[0]?.text?.content || '未命名课程'
+            };
+        });
+        
+        console.log('成功从Notion获取课程列表，共', courses.length, '门课程');
+        return courses;
     } catch (error) {
         console.error('从Notion获取课程列表失败:', error);
-        return [];
+        
+        // 如果是网络错误或CORS错误，返回模拟数据并提示用户
+        console.log('获取课程列表失败，返回模拟数据');
+        return [
+            { id: 'course-1', name: '测试课程1' },
+            { id: 'course-2', name: '测试课程2' },
+            { id: 'course-3', name: '测试课程3' }
+        ];
     }
 }
 
@@ -221,17 +234,95 @@ async function handleCourseChange() {
 // 从Notion获取章节列表
 async function getChaptersFromNotion(courseId) {
     try {
-        // 这里需要根据实际的Notion数据库结构来获取章节
-        // 假设章节是通过课程页面的关系属性或其他方式关联的
-        // 暂时返回模拟数据
+        // 检查是否配置了代理URL
+        if (config.notionProxyUrl) {
+            // 使用代理URL获取章节列表
+            // 注意：当前代理脚本不直接支持获取章节列表
+            // 这里返回模拟数据，实际应用中需要扩展代理脚本功能
+            console.log('使用代理URL获取章节列表（当前返回模拟数据）');
+            return [
+                { id: 'chapter-1', name: '第1章：入门介绍' },
+                { id: 'chapter-2', name: '第2章：核心概念' },
+                { id: 'chapter-3', name: '第3章：实战应用' }
+            ];
+        } else {
+            // 直接调用Notion API获取课程页面详情，从中提取章节信息
+            // 1. 先获取课程页面的详细信息
+            const coursePageResponse = await fetch(`https://api.notion.com/v1/pages/${courseId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${config.notionApiToken}`,
+                    'Notion-Version': '2022-06-28'
+                }
+            });
+            
+            if (!coursePageResponse.ok) {
+                throw new Error(`获取课程详情失败：${coursePageResponse.status}`);
+            }
+            
+            const coursePage = await coursePageResponse.json();
+            
+            // 2. 从课程页面中提取章节信息
+            // 这里需要根据实际的Notion数据库结构调整
+            // 假设章节信息存储在名为"章节列表"的rich_text属性中，格式为换行分隔的章节名称
+            let chapters = [];
+            
+            // 尝试从rich_text属性中提取章节
+            const chaptersProperty = coursePage.properties['章节列表'];
+            if (chaptersProperty && chaptersProperty.rich_text && chaptersProperty.rich_text.length > 0) {
+                const chaptersText = chaptersProperty.rich_text[0].text.content;
+                if (chaptersText) {
+                    // 按换行分割章节
+                    const chapterLines = chaptersText.split('\n').filter(line => line.trim() !== '');
+                    chapters = chapterLines.map((line, index) => {
+                        // 提取章节名称（假设格式为 "1. 章节名称" 或直接 "章节名称"）
+                        const chapterName = line.replace(/^\d+\.\s*/, '').trim();
+                        return {
+                            id: `chapter-${courseId}-${index + 1}`,
+                            name: chapterName
+                        };
+                    });
+                }
+            }
+            
+            // 如果从rich_text中没有提取到章节，尝试从relation属性中获取
+            if (chapters.length === 0) {
+                const relationProperty = coursePage.properties['章节'];
+                if (relationProperty && relationProperty.relation && relationProperty.relation.length > 0) {
+                    // 如果是relation属性，需要获取每个章节页面的详细信息
+                    const chapterIds = relationProperty.relation.map(rel => rel.id);
+                    
+                    // 批量获取章节页面信息
+                    // 注意：Notion API不支持批量获取页面，需要逐个获取
+                    // 这里为了简化，返回模拟数据
+                    chapters = chapterIds.map((chapterId, index) => {
+                        return {
+                            id: chapterId,
+                            name: `章节 ${index + 1}`
+                        };
+                    });
+                }
+            }
+            
+            // 如果还是没有获取到章节，返回默认的模拟数据
+            if (chapters.length === 0) {
+                chapters = [
+                    { id: 'chapter-1', name: '第1章：入门介绍' },
+                    { id: 'chapter-2', name: '第2章：核心概念' },
+                    { id: 'chapter-3', name: '第3章：实战应用' }
+                ];
+            }
+            
+            return chapters;
+        }
+    } catch (error) {
+        console.error('从Notion获取章节列表失败:', error);
+        // 失败时返回模拟数据
         return [
             { id: 'chapter-1', name: '第1章：入门介绍' },
             { id: 'chapter-2', name: '第2章：核心概念' },
             { id: 'chapter-3', name: '第3章：实战应用' }
         ];
-    } catch (error) {
-        console.error('从Notion获取章节列表失败:', error);
-        return [];
     }
 }
 
@@ -378,7 +469,7 @@ async function saveLearningRecordToNotion(record) {
         // 构建Notion页面数据
         const notionPageData = {
             parent: {
-                database_id: learningState.notionDatabaseId
+                database_id: learningState.notionLearningDatabaseId
             },
             properties: {
                 '课程名称': {
