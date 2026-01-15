@@ -204,7 +204,7 @@ async function getCoursesFromNotion() {
                 // 如果代理返回的是Notion API原始格式
                 const courses = data.results.map(page => ({
                     id: page.id,
-                    name: page.properties['Name']?.title[0]?.text?.content || '未命名课程'
+                    name: page.properties['课程名称']?.title[0]?.text?.content || '未命名课程'
                 }));
                 console.log('成功从代理获取课程列表，共', courses.length, '门课程');
                 return courses;
@@ -251,7 +251,7 @@ async function getCoursesFromNotion() {
         const courses = data.results.map(page => {
             return {
                 id: page.id,
-                name: page.properties['Name']?.title[0]?.text?.content || '未命名课程'
+                name: page.properties['课程名称']?.title[0]?.text?.content || '未命名课程'
             };
         });
         
@@ -330,17 +330,33 @@ async function getChaptersFromNotion(courseId) {
             const chaptersProperty = coursePage.properties['章节列表'];
             if (chaptersProperty && chaptersProperty.rich_text && chaptersProperty.rich_text.length > 0) {
                 const chaptersText = chaptersProperty.rich_text[0].text.content;
-                if (chaptersText) {
-                    // 按换行分割章节
-                    const chapterLines = chaptersText.split('\n').filter(line => line.trim() !== '');
-                    chapters = chapterLines.map((line, index) => {
-                        // 提取章节名称（假设格式为 "1. 章节名称" 或直接 "章节名称"）
-                        const chapterName = line.replace(/^\d+\.\s*/, '').trim();
-                        return {
-                            id: `chapter-${courseId}-${index + 1}`,
-                            name: chapterName
-                        };
-                    });
+                if (chaptersText && chaptersText.trim() !== '') {
+                    try {
+                        // 尝试解析JSON格式的章节列表
+                        const chaptersJson = JSON.parse(chaptersText);
+                        if (Array.isArray(chaptersJson)) {
+                            chapters = chaptersJson.map((chapter, index) => {
+                                // 提取章节名称
+                                const chapterName = chapter.title || `章节 ${chapter.chapter || index + 1}`;
+                                return {
+                                    id: `chapter-${courseId}-${index + 1}`,
+                                    name: chapterName
+                                };
+                            });
+                        }
+                    } catch (jsonError) {
+                        // JSON解析失败，尝试按换行分割章节
+                        console.error('解析章节JSON失败，尝试按换行分割:', jsonError);
+                        const chapterLines = chaptersText.split('\n').filter(line => line.trim() !== '');
+                        chapters = chapterLines.map((line, index) => {
+                            // 提取章节名称（假设格式为 "1. 章节名称" 或直接 "章节名称"）
+                            const chapterName = line.replace(/^\d+\.\s*/, '').trim();
+                            return {
+                                id: `chapter-${courseId}-${index + 1}`,
+                                name: chapterName
+                            };
+                        });
+                    }
                 }
             }
             
@@ -1001,7 +1017,10 @@ async function syncCoursesToNotion() {
                         targetAudience: course.targetAudience || '',
                         duration: course.duration || '',
                         difficulty: course.difficulty || '',
-                        chapters: course.chapters || []
+                        chapters: course.chapters ? course.chapters.map(chapter => ({
+                            title: chapter.name, // 将name字段转换为代理期望的title字段
+                            description: chapter.description || ''
+                        })) : []
                     })),
                     notionApiToken: config.notionApiToken,
                     notionDatabaseId: config.notionDatabaseId
@@ -1047,23 +1066,28 @@ async function createNotionPage(course) {
                 database_id: config.notionDatabaseId
             },
             properties: {
-                'Name': {
+                '课程名称': {
                     title: [{
                         text: {
                             content: course.name
                         }
                     }]
                 },
-                'Description': {
+                '简介': {
                     rich_text: [{
                         text: {
-                            content: course.description
+                            content: course.description || ''
                         }
                     }]
                 },
-                'Status': {
+                '状态': {
                     select: {
                         name: '待学习'
+                    }
+                },
+                '难度': {
+                    select: {
+                        name: course.difficulty || '入门'
                     }
                 },
                 '章节列表': {

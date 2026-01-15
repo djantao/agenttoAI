@@ -2,7 +2,7 @@
 
 // 允许的来源域名
 const ALLOWED_ORIGINS = [
-  'https://djantao.github.io', // 您的GitHub Pages域名
+  'https://djantao.github.io', // 您的GitHub Pages域名（修复了引号格式）
   'http://localhost:3000' // 本地开发环境
 ];
 
@@ -30,8 +30,10 @@ function formatChapters(chapters) {
     let chaptersText = '';
     for (let i = 0; i < chapters.length; i++) {
         const chapter = chapters[i];
-        if (chapter.title) {
-            chaptersText += `${i + 1}. ${chapter.title}`;
+        // 同时支持title和name字段，优先使用title
+        const chapterTitle = chapter.title || chapter.name;
+        if (chapterTitle) {
+            chaptersText += `${i + 1}. ${chapterTitle}`;
             if (chapter.description) {
                 chaptersText += `：${chapter.description}`;
             }
@@ -97,6 +99,47 @@ function generateModule(course) {
     return ['通用'];
 }
 
+// 处理查询请求
+async function handleQuery(requestBody, headers) {
+    const { notionApiToken, notionDatabaseId, queryParams } = requestBody;
+    
+    if (!notionApiToken || !notionDatabaseId) {
+        return new Response(JSON.stringify({ error: '缺少必要参数' }), {
+            status: 400,
+            headers: headers
+        });
+    }
+    
+    try {
+        // 调用Notion API查询课程列表
+        const response = await fetch(`https://api.notion.com/v1/databases/${notionDatabaseId}/query`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${notionApiToken}`,
+                'Content-Type': 'application/json',
+                'Notion-Version': '2022-06-28'
+            },
+            body: JSON.stringify(queryParams || { page_size: 100 })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(`Notion API查询失败: ${data.message || response.status}`);
+        }
+        
+        // 返回查询结果（Notion API原始格式）
+        return new Response(JSON.stringify(data), {
+            headers: headers
+        });
+    } catch (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: headers
+        });
+    }
+}
+
 // 处理POST请求
 async function handlePost(request) {
     const origin = request.headers.get('Origin');
@@ -106,262 +149,243 @@ async function handlePost(request) {
         'Access-Control-Allow-Origin': ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
         'Content-Type': 'application/json'
     };
-  
-  try {
-    // 解析请求体
-    const requestBody = await request.json();
-    const { courses, notionApiToken, notionDatabaseId } = requestBody;
     
-    if (!courses || !notionApiToken || !notionDatabaseId) {
-      return new Response(JSON.stringify({ error: '缺少必要参数' }), {
-        status: 400,
-        headers: headers
-      });
-    }
-    
-    // 存储成功同步的课程数量
-    let successCount = 0;
-    const results = [];
-    
-    // 遍历课程，逐个同步到Notion
-    for (const course of courses) {
-      try {
-        // 1. 先检查Notion数据库中是否已存在相同名称的课程
-        const searchResponse = await fetch(`https://api.notion.com/v1/databases/${notionDatabaseId}/query`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${notionApiToken}`,
-            'Content-Type': 'application/json',
-            'Notion-Version': '2022-06-28'
-          },
-          body: JSON.stringify({
-            filter: {
-              property: '课程名称',
-              title: {
-                equals: course.title
-              }
+    try {
+        // 解析请求体
+        const requestBody = await request.json();
+        const { action } = requestBody;
+        
+        // 新增：处理查询请求
+        if (action === 'query') {
+            return handleQuery(requestBody, headers);
+        }
+        
+        // 原有：处理同步课程请求
+        const { courses, notionApiToken, notionDatabaseId } = requestBody;
+        
+        if (!courses || !notionApiToken || !notionDatabaseId) {
+            return new Response(JSON.stringify({ error: '缺少必要参数' }), {
+                status: 400,
+                headers: headers
+            });
+        }
+        
+        // 存储成功同步的课程数量
+        let successCount = 0;
+        const results = [];
+        
+        // 遍历课程，逐个同步到Notion
+        for (const course of courses) {
+            try {
+                // 1. 先检查Notion数据库中是否已存在相同名称的课程
+                const searchResponse = await fetch(`https://api.notion.com/v1/databases/${notionDatabaseId}/query`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${notionApiToken}`,
+                        'Content-Type': 'application/json',
+                        'Notion-Version': '2022-06-28'
+                    },
+                    body: JSON.stringify({
+                        filter: {
+                            property: '课程名称',
+                            title: {
+                                equals: course.title
+                            }
+                        }
+                    })
+                });
+                
+                const searchResult = await searchResponse.json();
+                
+                if (!searchResponse.ok) {
+                    throw new Error(`搜索课程失败: ${searchResult.error.message}`);
+                }
+                
+                let notionResponse, notionResult;
+                
+                if (searchResult.results.length > 0) {
+                    // 课程已存在，更新现有页面
+                    const existingPageId = searchResult.results[0].id;
+                    
+                    notionResponse = await fetch(`https://api.notion.com/v1/pages/${existingPageId}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Authorization': `Bearer ${notionApiToken}`,
+                            'Content-Type': 'application/json',
+                            'Notion-Version': '2022-06-28'
+                        },
+                        body: JSON.stringify({
+                            properties: {
+                                '简介': {
+                                    rich_text: [
+                                        {
+                                            text: {
+                                                content: course.description || ''
+                                            }
+                                        }
+                                    ]
+                                },
+                                '难度': {
+                                    select: {
+                                        name: course.difficulty || '初级'
+                                    }
+                                },
+                                '所属模块': {
+                                    multi_select: (course.module ? [course.module] : generateModule(course)).map(module => ({ name: module }))
+                                },
+                                '章节列表': {
+                                    rich_text: [
+                                        {
+                                            text: {
+                                                content: formatChapters(course.chapters)
+                                            }
+                                        }
+                                    ]
+                                },
+                                '更新时间': {
+                                    date: {
+                                        start: new Date().toISOString()
+                                    }
+                                }
+                            }
+                        })
+                    });
+                    
+                    notionResult = await notionResponse.json();
+                    
+                    if (notionResponse.ok) {
+                        successCount++;
+                        results.push({ success: true, course: course.title, notionId: existingPageId, action: 'updated' });
+                    } else {
+                        results.push({  
+                            success: false,  
+                            course: course.title,  
+                            error: notionResult,  
+                            status: notionResponse.status,
+                            statusText: notionResponse.statusText,
+                            action: 'update_failed'
+                        });
+                    }
+                } else {
+                    // 课程不存在，创建新页面
+                    notionResponse = await fetch('https://api.notion.com/v1/pages', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${notionApiToken}`,
+                            'Content-Type': 'application/json',
+                            'Notion-Version': '2022-06-28'
+                        },
+                        body: JSON.stringify({
+                            parent: {
+                                database_id: notionDatabaseId
+                            },
+                            properties: {
+                                '课程名称': {
+                                    title: [
+                                        {
+                                            text: {
+                                                content: course.title
+                                            }
+                                        }
+                                    ]
+                                },
+                                '简介': {
+                                    rich_text: [
+                                        {
+                                            text: {
+                                                content: course.description || ''
+                                            }
+                                        }
+                                    ]
+                                },
+                                '状态': {
+                                    select: {
+                                        name: '待学习'
+                                    }
+                                },
+                                '所属模块': {
+                                    multi_select: generateModule(course).map(module => ({ name: module }))
+                                },
+                                '难度': {
+                                    select: {
+                                        name: course.difficulty || '初级'
+                                    }
+                                },
+                                '章节列表': {
+                                    rich_text: [
+                                        {
+                                            text: {
+                                                content: formatChapters(course.chapters)
+                                            }
+                                        }
+                                    ]
+                                },
+                                '创建时间': {
+                                    date: {
+                                        start: new Date().toISOString()
+                                    }
+                                }
+                            }
+                        })
+                    });
+                    
+                    notionResult = await notionResponse.json();
+                    
+                    if (notionResponse.ok) {
+                        successCount++;
+                        results.push({ success: true, course: course.title, notionId: notionResult.id, action: 'created' });
+                    } else {
+                        results.push({  
+                            success: false,  
+                            course: course.title,  
+                            error: notionResult,  
+                            status: notionResponse.status,
+                            statusText: notionResponse.statusText,
+                            action: 'create_failed'
+                        });
+                    }
+                }
+            } catch (error) {
+                results.push({ success: false, course: course.title, error: error.message });
             }
-          })
+        }
+        
+        // 返回同步结果
+        return new Response(JSON.stringify({
+            success: true,
+            total: courses.length,
+            successCount: successCount,
+            results: results
+        }), {
+            headers: headers
         });
-        
-        const searchResult = await searchResponse.json();
-        
-        if (!searchResponse.ok) {
-          throw new Error(`搜索课程失败: ${searchResult.error.message}`);
-        }
-        
-        let notionResponse, notionResult;
-        
-        if (searchResult.results.length > 0) {
-          // 课程已存在，更新现有页面
-          const existingPageId = searchResult.results[0].id;
-          
-          notionResponse = await fetch(`https://api.notion.com/v1/pages/${existingPageId}`, {
-            method: 'PATCH',
-            headers: {
-              'Authorization': `Bearer ${notionApiToken}`,
-              'Content-Type': 'application/json',
-              'Notion-Version': '2022-06-28'
-            },
-            body: JSON.stringify({
-              properties: {
-                '简介': {
-                  rich_text: [
-                    {
-                      text: {
-                        content: course.description || ''
-                      }
-                    }
-                  ]
-                },
-                '难度': {
-                  select: {
-                    name: '初级'
-                  }
-                },
-                '所属模块': {
-                  multi_select: (course.module ? [course.module] : generateModule(course)).map(module => ({ name: module }))
-                },
-                '章节列表': {
-                  rich_text: [
-                    {
-                      text: {
-                        content: formatChapters(course.chapters)
-                      }
-                    }
-                  ]
-                },
-                '更新时间': {
-                  date: {
-                    start: new Date().toISOString()
-                  }
-                }
-              }
-            })
-          });
-          
-          notionResult = await notionResponse.json();
-          
-          if (notionResponse.ok) {
-            successCount++;
-            results.push({ success: true, course: course.title, notionId: existingPageId, action: 'updated' });
-          } else {
-            results.push({ 
-              success: false, 
-              course: course.title, 
-              error: notionResult, 
-              status: notionResponse.status,
-              statusText: notionResponse.statusText,
-              action: 'update_failed'
-            });
-          }
-        } else {
-          // 课程不存在，创建新页面
-          notionResponse = await fetch('https://api.notion.com/v1/pages', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${notionApiToken}`,
-              'Content-Type': 'application/json',
-              'Notion-Version': '2022-06-28'
-            },
-            body: JSON.stringify({
-              parent: {
-                database_id: notionDatabaseId
-              },
-              properties: {
-                '课程名称': {
-                  title: [
-                    {
-                      text: {
-                        content: course.title
-                      }
-                    }
-                  ]
-                },
-                '简介': {
-                  rich_text: [
-                    {
-                      text: {
-                        content: course.description || ''
-                      }
-                    }
-                  ]
-                },
-                '状态': {
-                  select: {
-                    name: '待学习'
-                  }
-                },
-                '所属模块': {
-                  multi_select: generateModule(course).map(module => ({ name: module }))
-                },
-                '难度': {
-                  select: {
-                    name: '初级'
-                  }
-                },
-                '章节列表': {
-                  rich_text: [
-                    {
-                      text: {
-                        content: formatChapters(course.chapters)
-                      }
-                    }
-                  ]
-                },
-                '创建时间': {
-                  date: {
-                    start: new Date().toISOString()
-                  }
-                }
-              }
-            })
-          });
-          
-          notionResult = await notionResponse.json();
-          
-          if (notionResponse.ok) {
-            successCount++;
-            results.push({ success: true, course: course.title, notionId: notionResult.id, action: 'created' });
-          } else {
-            results.push({ 
-              success: false, 
-              course: course.title, 
-              error: notionResult, 
-              status: notionResponse.status,
-              statusText: notionResponse.statusText,
-              action: 'create_failed'
-            });
-          }
-        }
-      } catch (error) {
-        results.push({ success: false, course: course.title, error: error.message });
-      }
+    } catch (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: headers
+        });
     }
-    
-    // 返回同步结果
-    return new Response(JSON.stringify({
-      success: true,
-      total: courses.length,
-      successCount: successCount,
-      results: results
-    }), {
-      headers: headers
-    });
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: headers
-    });
-  }
 }
 
 // 处理所有请求
 async function handleRequest(request) {
-  const method = request.method;
-  
-  if (method === 'OPTIONS') {
-    return handleOptions(request);
-  } else if (method === 'POST') {
-    return handlePost(request);
-  } else {
-    return new Response('Method not allowed', {
-      status: 405,
-      headers: {
-        'Allow': 'POST, OPTIONS'
-      }
-    });
-  }
+    const method = request.method;
+    
+    if (method === 'OPTIONS') {
+        return handleOptions(request);
+    } else if (method === 'POST') {
+        return handlePost(request);
+    } else {
+        return new Response('Method not allowed', {
+            status: 405,
+            headers: {
+                'Allow': 'POST, OPTIONS'
+            }
+        });
+    }
 }
 
 // 监听fetch事件
 addEventListener('fetch', (event) => {
-  event.respondWith(handleRequest(event.request));
+    event.respondWith(handleRequest(event.request));
 });
-
-/*
-部署说明：
-1. 登录Cloudflare控制台
-2. 选择Workers & Pages
-3. 创建一个新的Worker
-4. 将此脚本粘贴到编辑器中
-5. 点击"部署"按钮
-6. 部署后，获取Worker的URL（如：https://notion-proxy.your-account.workers.dev）
-7. 在您的前端代码中，将Notion同步请求指向此Worker URL
-
-使用说明：
-- 前端需要发送POST请求到Worker URL
-- 请求体格式：
-  {
-    "courses": [
-      {
-        "title": "课程名称",
-        "description": "课程描述",
-        "targetAudience": "适合人群",
-        "duration": "预计时长"
-      }
-    ],
-    "notionApiToken": "您的Notion API密钥",
-    "notionDatabaseId": "您的Notion数据库ID"
-  }
-*/
