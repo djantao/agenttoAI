@@ -67,6 +67,7 @@ let learningState = {
     startTime: null,
     endTime: null,
     chatHistory: [],
+    systemPrompt: '', // 从提示词文件加载的系统提示词
     notionDatabaseId: '2e43af348d5780fd9b8ed286eba4c996' // 学习记录表数据库ID
 };
 
@@ -228,6 +229,21 @@ function handleChapterChange() {
     }
 }
 
+// 加载提示词文件
+async function loadPromptFile(promptName) {
+    try {
+        const response = await fetch(`prompts/${promptName}.txt`);
+        if (!response.ok) {
+            throw new Error(`无法加载提示词文件：${response.status}`);
+        }
+        return await response.text();
+    } catch (error) {
+        console.error('加载提示词文件失败:', error);
+        // 返回默认提示词
+        return `你是一个专业的AI学习助手，正在教授${learningState.currentCourse.name} - ${learningState.currentChapter.name}的内容。请根据用户的问题提供详细、准确的解答。`;
+    }
+}
+
 // 处理继续学习按钮点击
 async function handleContinueLearning() {
     const courseId = elements.courseSelect.value;
@@ -255,6 +271,13 @@ async function handleContinueLearning() {
     learningState.startTime = new Date();
     learningState.chatHistory = [];
     
+    // 加载提示词文件
+    const promptText = await loadPromptFile('socratic_learning');
+    // 替换提示词中的变量
+    learningState.systemPrompt = promptText
+        .replace('{course_name}', courseName)
+        .replace('{chapter_name}', chapterName);
+    
     // 加载最新的学习记录
     await loadLatestLearningRecord();
     
@@ -264,7 +287,7 @@ async function handleContinueLearning() {
     elements.learningSendBtn.disabled = false;
     
     // 显示欢迎消息
-    addLearningMessage('ai', `欢迎学习 ${courseName} - ${chapterName}！`);
+    addLearningMessage('ai', `欢迎学习 ${courseName} - ${chapterName}！我将使用苏格拉底学习法帮助您深入理解课程内容。`);
 }
 
 // 加载最新学习记录
@@ -477,7 +500,7 @@ async function handleLearningSendMessage() {
                 messages: [
                     {
                         role: 'system',
-                        content: `你是一个专业的AI学习助手，正在教授${learningState.currentCourse.name} - ${learningState.currentChapter.name}的内容。请根据用户的问题提供详细、准确的解答。`
+                        content: learningState.systemPrompt
                     },
                     ...learningState.chatHistory
                 ],
