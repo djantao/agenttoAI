@@ -7,7 +7,7 @@ let config = {
     doubaoModel: '',
     doubaoApiKey: '',
     notionApiToken: '',
-    notionDatabaseId: '2e43af348d5780fd9b8ed286eba4c996', // 课程数据库ID（默认值）
+    notionDatabaseId: '2e43af348d578057bbe7d85ea7ef73fa', // 课程数据库ID（写死）
     notionProxyUrl: 'https://notion-proxy.timbabys80.workers.dev/' // Cloudflare Workers代理URL（默认值）
 };
 
@@ -65,7 +65,7 @@ let learningState = {
     endTime: null,
     chatHistory: [],
     systemPrompt: '', // 从提示词文件加载的系统提示词
-    notionLearningDatabaseId: '2e43af348d5780fd9b8ed286eba4c996' // 学习记录表数据库ID
+    notionLearningDatabaseId: '2e43af348d5780fd9b8ed286eba4c996' // 学习记录表数据库ID（写死）
 };
 
 // 加载所有提示词文件
@@ -90,7 +90,12 @@ async function initApp() {
     // 检查是否有配置
     const savedConfig = localStorage.getItem('aiLearningAssistantConfig');
     if (savedConfig) {
-        config = JSON.parse(savedConfig);
+        const loadedConfig = JSON.parse(savedConfig);
+        // 加载配置，但保持写死的数据库ID不变
+        config = {
+            ...loadedConfig,
+            notionDatabaseId: '2e43af348d578057bbe7d85ea7ef73fa' // 课程数据库ID（写死，覆盖localStorage中的值）
+        };
         startConversation();
         loadCourses();
     } else {
@@ -715,13 +720,13 @@ function addLearningMessage(sender, text) {
 async function handleConfigSubmit(e) {
     e.preventDefault();
     
-    // 获取表单数据
+    // 获取表单数据，保持写死的数据库ID不变
     config = {
         doubaoApiUrl: document.getElementById('doubaoApiUrl').value,
         doubaoModel: document.getElementById('doubaoModel').value,
         doubaoApiKey: document.getElementById('doubaoApiKey').value,
         notionApiToken: document.getElementById('notionApiToken').value,
-        notionDatabaseId: document.getElementById('notionDatabaseId').value,
+        notionDatabaseId: '2e43af348d578057bbe7d85ea7ef73fa', // 课程数据库ID（写死，不允许修改）
         notionProxyUrl: document.getElementById('notionProxyUrl').value
     };
     
