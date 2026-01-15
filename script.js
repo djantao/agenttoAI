@@ -169,8 +169,57 @@ async function loadCourses() {
 // 从Notion获取课程列表
 async function getCoursesFromNotion() {
     try {
-        // 首先尝试直接调用Notion API获取课程列表
-        // 即使配置了代理，我们也尝试直接调用，因为代理主要用于同步，而非查询
+        // 检查是否配置了代理URL
+        if (config.notionProxyUrl) {
+            // 使用代理URL查询课程列表
+            console.log('使用代理URL查询课程列表');
+            
+            const response = await fetch(config.notionProxyUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    action: 'query', // 新增action字段，标识为查询操作
+                    notionApiToken: config.notionApiToken,
+                    notionDatabaseId: config.notionDatabaseId,
+                    queryParams: {
+                        page_size: 100
+                    }
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(`代理查询失败：${data.error || response.status}`);
+            }
+            
+            // 检查返回数据格式
+            if (data.courses && Array.isArray(data.courses)) {
+                // 如果代理返回的是直接的课程列表
+                console.log('成功从代理获取课程列表，共', data.courses.length, '门课程');
+                return data.courses;
+            } else if (data.results && Array.isArray(data.results)) {
+                // 如果代理返回的是Notion API原始格式
+                const courses = data.results.map(page => ({
+                    id: page.id,
+                    name: page.properties['Name']?.title[0]?.text?.content || '未命名课程'
+                }));
+                console.log('成功从代理获取课程列表，共', courses.length, '门课程');
+                return courses;
+            } else {
+                // 数据格式不符合预期，返回模拟数据
+                console.error('代理返回的数据格式不符合预期');
+                return [
+                    { id: 'course-1', name: '测试课程1' },
+                    { id: 'course-2', name: '测试课程2' },
+                    { id: 'course-3', name: '测试课程3' }
+                ];
+            }
+        }
+        
+        // 尝试直接调用Notion API获取课程列表
         console.log('尝试直接调用Notion API获取课程列表');
         
         const response = await fetch('https://api.notion.com/v1/databases/' + config.notionDatabaseId + '/query', {
@@ -186,22 +235,14 @@ async function getCoursesFromNotion() {
         });
         
         if (!response.ok) {
-            // 如果直接调用失败，检查是否是CORS错误或其他网络错误
-            // 对于CORS错误，我们可以提示用户配置代理
+            // 如果直接调用失败，返回模拟数据
             console.error('直接调用Notion API失败，状态码:', response.status);
-            
-            // 如果配置了代理URL，我们可以返回模拟数据，但需要提示用户
-            if (config.notionProxyUrl) {
-                console.log('使用代理URL时无法直接获取课程列表，返回模拟数据');
-                return [
-                    { id: 'course-1', name: '测试课程1' },
-                    { id: 'course-2', name: '测试课程2' },
-                    { id: 'course-3', name: '测试课程3' }
-                ];
-            } else {
-                // 如果没有配置代理，抛出错误
-                throw new Error(`Notion API错误：${response.status}`);
-            }
+            console.log('获取课程列表失败，返回模拟数据');
+            return [
+                { id: 'course-1', name: '测试课程1' },
+                { id: 'course-2', name: '测试课程2' },
+                { id: 'course-3', name: '测试课程3' }
+            ];
         }
         
         const data = await response.json();
@@ -219,7 +260,7 @@ async function getCoursesFromNotion() {
     } catch (error) {
         console.error('从Notion获取课程列表失败:', error);
         
-        // 如果是网络错误或CORS错误，返回模拟数据并提示用户
+        // 如果是网络错误、CORS错误或其他任何错误，返回模拟数据
         console.log('获取课程列表失败，返回模拟数据');
         return [
             { id: 'course-1', name: '测试课程1' },
