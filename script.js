@@ -70,27 +70,16 @@ let learningState = {
 
 // 加载所有提示词文件
 async function loadAllPrompts() {
-    try {
-        // 加载三轮对话的提示词
-        const prompt1 = await loadPromptFile('prompt1');
-        const prompt2 = await loadPromptFile('prompt2');
-        const prompt3 = await loadPromptFile('prompt3');
-        
-        // 更新questions数组
-        questions = [prompt1, prompt2, prompt3];
-        
-        console.log('提示词文件加载成功');
-        return true;
-    } catch (error) {
-        console.error('加载提示词文件失败:', error);
-        // 如果加载失败，使用默认问题
-        questions = [
-            "您想学习什么领域的知识？",
-            "您的学习目标是什么？",
-            "您每天可以投入多少时间学习？"
-        ];
-        return false;
-    }
+    // 加载三轮对话的提示词
+    const prompt1 = await loadPromptFile('prompt1');
+    const prompt2 = await loadPromptFile('prompt2');
+    const prompt3 = await loadPromptFile('prompt3');
+    
+    // 更新questions数组
+    questions = [prompt1, prompt2, prompt3];
+    
+    console.log('提示词文件加载成功');
+    return true;
 }
 
 // 初始化应用
@@ -361,17 +350,11 @@ function handleChapterChange() {
 
 // 加载提示词文件
 async function loadPromptFile(promptName) {
-    try {
-        const response = await fetch(`prompts/${promptName}.txt`);
-        if (!response.ok) {
-            throw new Error(`无法加载提示词文件：${response.status}`);
-        }
-        return await response.text();
-    } catch (error) {
-        console.error('加载提示词文件失败:', error);
-        // 返回默认提示词
-        return `你是一个专业的AI学习助手，正在教授${learningState.currentCourse.name} - ${learningState.currentChapter.name}的内容。请根据用户的问题提供详细、准确的解答。`;
+    const response = await fetch(`prompts/${promptName}.txt`);
+    if (!response.ok) {
+        throw new Error(`无法加载提示词文件 ${promptName}.txt：${response.status}`);
     }
+    return await response.text();
 }
 
 // 处理继续学习按钮点击
@@ -959,6 +942,7 @@ async function syncCoursesToNotion() {
         // 检查是否配置了代理URL
         if (config.notionProxyUrl) {
             // 使用代理URL同步课程
+            console.log('同步到Notion的课程数据:', conversationState.courses);
             const response = await fetch(config.notionProxyUrl, {
                 method: 'POST',
                 headers: {
@@ -970,6 +954,7 @@ async function syncCoursesToNotion() {
                         description: course.description || '',
                         targetAudience: course.targetAudience || '',
                         duration: course.duration || '',
+                        difficulty: course.difficulty || '',
                         chapters: course.chapters || []
                     })),
                     notionApiToken: config.notionApiToken,
