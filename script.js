@@ -415,9 +415,19 @@ async function getChaptersFromNotion(courseId) {
 // 处理章节选择变化
 function handleChapterChange() {
     const chapterId = elements.chapterSelect.value;
-    if (chapterId) {
+    const chapterName = elements.chapterSelect.options[elements.chapterSelect.selectedIndex].text;
+    
+    if (chapterId && chapterName) {
+        // 将选中的章节存储在learningState中，确保与课程强关联
+        learningState.currentChapter = {
+            id: chapterId,
+            name: chapterName
+        };
+        
+        console.log('选择了章节:', chapterName, '，ID:', chapterId);
+        console.log('当前学习状态:', learningState);
+        
         // 可以在这里加载章节相关的学习资料或初始化学习状态
-        console.log('选择了章节:', chapterId);
     }
 }
 
@@ -612,43 +622,56 @@ async function saveLearningRecordToNotion(record) {
         
         // 检查是否配置了代理URL
         if (config.notionProxyUrl) {
-            // 注意：当前代理脚本主要支持同步课程列表，不直接支持保存学习记录
-            // 这里尝试使用代理的方式，但需要代理脚本支持
-            console.log('尝试使用代理URL保存学习记录');
+            // 使用代理URL保存学习记录
+            console.log('使用代理URL保存学习记录');
             
-            // 由于当前代理脚本不直接支持保存学习记录，我们可以尝试将学习记录包装成课程格式
-            // 或者直接调用Notion API
-            
-            // 直接调用Notion API（对于学习记录，我们暂时不使用代理）
-            const response = await fetch('https://api.notion.com/v1/pages', {
+            const response = await fetch(config.notionProxyUrl, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${config.notionApiToken}`,
-                    'Content-Type': 'application/json',
-                    'Notion-Version': '2022-06-28'
+                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(notionPageData)
+                body: JSON.stringify({
+                    action: 'save_learning_record', // 新增action字段，标识为保存学习记录操作
+                    notionApiToken: config.notionApiToken,
+                    notionDatabaseId: learningState.notionLearningDatabaseId,
+                    record: notionPageData
+                })
             });
             
+            const data = await response.json();
+            
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(`Notion API错误：${errorData.message || response.statusText}`);
+                console.error('代理请求失败，但不中断流程:', data.error || response.status);
+                // 不抛出错误，避免打断用户体验
+                return;
             }
+            
+            console.log('学习记录已通过代理保存到Notion');
         } else {
             // 直接调用Notion API
-            const response = await fetch('https://api.notion.com/v1/pages', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${config.notionApiToken}`,
-                    'Content-Type': 'application/json',
-                    'Notion-Version': '2022-06-28'
-                },
-                body: JSON.stringify(notionPageData)
-            });
-            
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(`Notion API错误：${errorData.message || response.statusText}`);
+            console.log('直接调用Notion API保存学习记录');
+            try {
+                const response = await fetch('https://api.notion.com/v1/pages', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${config.notionApiToken}`,
+                        'Content-Type': 'application/json',
+                        'Notion-Version': '2022-06-28'
+                    },
+                    body: JSON.stringify(notionPageData)
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error('Notion API错误，但不中断流程:', errorData.message || response.statusText);
+                    // 不抛出错误，避免打断用户体验
+                    return;
+                }
+                
+                console.log('学习记录已直接保存到Notion');
+            } catch (apiError) {
+                console.error('直接调用Notion API失败，可能是CORS问题:', apiError);
+                // 不抛出错误，避免打断用户体验
             }
         }
         
@@ -667,17 +690,54 @@ async function saveChatHistoryToGitHub() {
         const date = new Date();
         const dateStr = date.toISOString().split('T')[0];
         
-        // 构建对话记录数据
+        // 构建对话记录数据（JSON格式）
         const chatData = {
-            course: learningState.currentCourse,
-            chapter: learningState.currentChapter,
-            timestamp: date.toISOString(),
-            messages: learningState.chatHistory
+            metadata: {
+                course: learningState.currentCourse,
+                chapter: learningState.currentChapter,
+                date: dateStr,
+                timestamp: date.toISOString(),
+                totalMessages: learningState.chatHistory.length
+            },
+            messages: learningState.chatHistory.map(msg => ({
+                role: msg.role,
+                content: msg.content,
+                timestamp: msg.timestamp || date.toISOString()
+            }))
         };
         
-        // 这里需要实现GitHub API调用，将对话记录保存到每日对话目录
-        // 暂时打印日志
-        console.log('保存对话记录到GitHub:', chatData);
+        // 将对话记录转换为格式化的JSON字符串
+        const chatJson = JSON.stringify(chatData, null, 2);
+        
+        // 这里需要实现GitHub API调用，将JSON格式的对话记录保存到每日对话目录
+        console.log(`准备保存${dateStr}的对话记录，共${chatData.messages.length}条消息`);
+        console.log('对话记录JSON:', chatJson);
+        
+        // 示例：GitHub API保存逻辑（需要根据实际情况调整）
+        // const githubToken = 'YOUR_GITHUB_TOKEN'; // 应该从配置中获取
+        // const repoOwner = 'YOUR_REPO_OWNER';
+        // const repoName = 'YOUR_REPO_NAME';
+        // const filePath = `daily_chats/${dateStr}.json`;
+        
+        // const response = await fetch(`https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`, {
+        //     method: 'PUT',
+        //     headers: {
+        //         'Authorization': `Bearer ${githubToken}`,
+        //         'Content-Type': 'application/json'
+        //     },
+        //     body: JSON.stringify({
+        //         message: `Add chat history for ${dateStr}`,
+        //         content: btoa(chatJson),
+        //         // 可以添加branch参数指定分支
+        //     })
+        // });
+        
+        // if (!response.ok) {
+        //     const errorData = await response.json();
+        //     throw new Error(`GitHub API错误：${errorData.message || response.statusText}`);
+        // }
+        
+        console.log('对话记录已准备好保存为JSON格式');
         
         // 后续需要实现实际的GitHub API调用
     } catch (error) {

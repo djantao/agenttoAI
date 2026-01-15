@@ -140,6 +140,51 @@ async function handleQuery(requestBody, headers) {
     }
 }
 
+// 处理保存学习记录请求
+async function handleSaveLearningRecord(requestBody, headers) {
+    const { notionApiToken, record } = requestBody;
+    
+    if (!notionApiToken || !record) {
+        return new Response(JSON.stringify({ error: '缺少必要参数' }), {
+            status: 400,
+            headers: headers
+        });
+    }
+    
+    try {
+        // 调用Notion API创建学习记录页面
+        const response = await fetch('https://api.notion.com/v1/pages', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${notionApiToken}`,
+                'Content-Type': 'application/json',
+                'Notion-Version': '2022-06-28'
+            },
+            body: JSON.stringify(record)
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(`Notion API保存学习记录失败: ${data.message || response.status}`);
+        }
+        
+        // 返回保存结果
+        return new Response(JSON.stringify({
+            success: true,
+            recordId: data.id,
+            message: '学习记录已成功保存'
+        }), {
+            headers: headers
+        });
+    } catch (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: headers
+        });
+    }
+}
+
 // 处理POST请求
 async function handlePost(request) {
     const origin = request.headers.get('Origin');
@@ -158,6 +203,11 @@ async function handlePost(request) {
         // 新增：处理查询请求
         if (action === 'query') {
             return handleQuery(requestBody, headers);
+        }
+        
+        // 新增：处理保存学习记录请求
+        if (action === 'save_learning_record') {
+            return handleSaveLearningRecord(requestBody, headers);
         }
         
         // 原有：处理同步课程请求
