@@ -375,86 +375,117 @@ function generateLearningChallenges(chatHistory) {
 // 保存学习记录到Notion
 async function saveLearningRecordToNotion(record) {
     try {
-        const response = await fetch('https://api.notion.com/v1/pages', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${config.notionApiToken}`,
-                'Content-Type': 'application/json',
-                'Notion-Version': '2022-06-28'
+        // 构建Notion页面数据
+        const notionPageData = {
+            parent: {
+                database_id: learningState.notionDatabaseId
             },
-            body: JSON.stringify({
-                parent: {
-                    database_id: learningState.notionDatabaseId
+            properties: {
+                '课程名称': {
+                    title: [{
+                        text: {
+                            content: record.courseName
+                        }
+                    }]
                 },
-                properties: {
-                    '课程名称': {
-                        title: [{
-                            text: {
-                                content: record.courseName
-                            }
-                        }]
-                    },
-                    '章节名称': {
-                        rich_text: [{
-                            text: {
-                                content: record.chapterName
-                            }
-                        }]
-                    },
-                    '学习开始时间': {
-                        date: {
-                            start: record.startTime
+                '章节名称': {
+                    rich_text: [{
+                        text: {
+                            content: record.chapterName
                         }
-                    },
-                    '学习结束时间': {
-                        date: {
-                            start: record.endTime
-                        }
-                    },
-                    '学习时长': {
-                        rich_text: [{
-                            text: {
-                                content: record.duration
-                            }
-                        }]
-                    },
-                    '掌握程度': {
-                        select: {
-                            name: record.mastery
-                        }
-                    },
-                    '状态': {
-                        select: {
-                            name: record.status
-                        }
-                    },
-                    '学习摘要': {
-                        rich_text: [{
-                            text: {
-                                content: record.summary
-                            }
-                        }]
-                    },
-                    '学习挑战': {
-                        rich_text: [{
-                            text: {
-                                content: record.challenges
-                            }
-                        }]
+                    }]
+                },
+                '学习开始时间': {
+                    date: {
+                        start: record.startTime
                     }
+                },
+                '学习结束时间': {
+                    date: {
+                        start: record.endTime
+                    }
+                },
+                '学习时长': {
+                    rich_text: [{
+                        text: {
+                            content: record.duration
+                        }
+                    }]
+                },
+                '掌握程度': {
+                    select: {
+                        name: record.mastery
+                    }
+                },
+                '状态': {
+                    select: {
+                        name: record.status
+                    }
+                },
+                '学习摘要': {
+                    rich_text: [{
+                        text: {
+                            content: record.summary
+                        }
+                    }]
+                },
+                '学习挑战': {
+                    rich_text: [{
+                        text: {
+                            content: record.challenges
+                        }
+                    }]
                 }
-            })
-        });
+            }
+        };
         
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(`Notion API错误：${errorData.message || response.statusText}`);
+        // 检查是否配置了代理URL
+        if (config.notionProxyUrl) {
+            // 注意：当前代理脚本主要支持同步课程列表，不直接支持保存学习记录
+            // 这里尝试使用代理的方式，但需要代理脚本支持
+            console.log('尝试使用代理URL保存学习记录');
+            
+            // 由于当前代理脚本不直接支持保存学习记录，我们可以尝试将学习记录包装成课程格式
+            // 或者直接调用Notion API
+            
+            // 直接调用Notion API（对于学习记录，我们暂时不使用代理）
+            const response = await fetch('https://api.notion.com/v1/pages', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${config.notionApiToken}`,
+                    'Content-Type': 'application/json',
+                    'Notion-Version': '2022-06-28'
+                },
+                body: JSON.stringify(notionPageData)
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`Notion API错误：${errorData.message || response.statusText}`);
+            }
+        } else {
+            // 直接调用Notion API
+            const response = await fetch('https://api.notion.com/v1/pages', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${config.notionApiToken}`,
+                    'Content-Type': 'application/json',
+                    'Notion-Version': '2022-06-28'
+                },
+                body: JSON.stringify(notionPageData)
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`Notion API错误：${errorData.message || response.statusText}`);
+            }
         }
         
         console.log('学习记录已保存到Notion');
     } catch (error) {
         console.error('保存学习记录到Notion失败:', error);
-        alert('保存学习记录到Notion失败: ' + error.message);
+        // 不显示alert，避免打断用户体验
+        console.log('保存学习记录到Notion失败:', error.message);
     }
 }
 
