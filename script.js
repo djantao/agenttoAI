@@ -202,11 +202,18 @@ async function getCoursesFromNotion() {
                 return data.courses;
             } else if (data.results && Array.isArray(data.results)) {
                 // 如果代理返回的是Notion API原始格式
-                const courses = data.results.map(page => ({
-                    id: page.id,
-                    name: page.properties['课程名称']?.title[0]?.text?.content || '未命名课程'
-                }));
-                console.log('成功从代理获取课程列表，共', courses.length, '门课程');
+                console.log('解析Notion API原始格式数据，结果数量:', data.results.length);
+                const courses = data.results.map((page, index) => {
+                    console.log(`课程${index + 1}的properties:`, page.properties);
+                    console.log(`课程${index + 1}的"课程名称"字段:`, page.properties['课程名称']);
+                    const courseName = page.properties['课程名称']?.title[0]?.text?.content;
+                    console.log(`课程${index + 1}的名称:`, courseName);
+                    return {
+                        id: page.id,
+                        name: courseName || '未命名课程'
+                    };
+                });
+                console.log('成功从代理获取课程列表，共', courses.length, '门课程', courses);
                 return courses;
             } else {
                 // 数据格式不符合预期，返回模拟数据
@@ -248,14 +255,18 @@ async function getCoursesFromNotion() {
         const data = await response.json();
         
         // 解析课程列表
-        const courses = data.results.map(page => {
+        console.log('直接调用API：解析Notion API原始格式数据，结果数量:', data.results.length);
+        const courses = data.results.map((page, index) => {
+            console.log(`直接调用API：课程${index + 1}的properties:`, page.properties);
+            console.log(`直接调用API：课程${index + 1}的"课程名称"字段:`, page.properties['课程名称']);
+            const courseName = page.properties['课程名称']?.title[0]?.text?.content;
+            console.log(`直接调用API：课程${index + 1}的名称:`, courseName);
             return {
                 id: page.id,
-                name: page.properties['课程名称']?.title[0]?.text?.content || '未命名课程'
+                name: courseName || '未命名课程'
             };
         });
-        
-        console.log('成功从Notion获取课程列表，共', courses.length, '门课程');
+        console.log('直接调用API：成功从Notion获取课程列表，共', courses.length, '门课程', courses);
         return courses;
     } catch (error) {
         console.error('从Notion获取课程列表失败:', error);
