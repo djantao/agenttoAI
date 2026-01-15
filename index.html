@@ -37,6 +37,11 @@
                     <label for="notionProxyUrl">Notion代理URL（可选）：</label>
                     <input type="text" id="notionProxyUrl" placeholder="例如：https://notion-proxy.your-account.workers.dev" value="https://notion-proxy.timbabys80.workers.dev/">
                 </div>
+                <div class="form-group">
+                    <label for="githubToken">GitHub Token（可选，用于保存对话记录）：</label>
+                    <input type="password" id="githubToken" placeholder="请输入GitHub Personal Access Token" autocomplete="new-password">
+                    <small>获取方式：GitHub > Settings > Developer settings > Personal access tokens > Generate new token</small>
+                </div>
                 <div class="form-actions">
                     <button type="submit" class="submit-btn">保存配置</button>
                 </div>

@@ -8,7 +8,8 @@ let config = {
     doubaoApiKey: '',
     notionApiToken: '',
     notionDatabaseId: '2e43af348d578057bbe7d85ea7ef73fa', // 课程数据库ID（写死）
-    notionProxyUrl: 'https://notion-proxy.timbabys80.workers.dev/' // Cloudflare Workers代理URL（默认值）
+    notionProxyUrl: 'https://notion-proxy.timbabys80.workers.dev/', // Cloudflare Workers代理URL（默认值）
+    githubToken: '' // GitHub API Token（用于保存对话记录）
 };
 
 // 对话状态
@@ -709,39 +710,90 @@ async function saveChatHistoryToGitHub() {
         // 将对话记录转换为格式化的JSON字符串
         const chatJson = JSON.stringify(chatData, null, 2);
         
-        // 这里需要实现GitHub API调用，将JSON格式的对话记录保存到每日对话目录
         console.log(`准备保存${dateStr}的对话记录，共${chatData.messages.length}条消息`);
         console.log('对话记录JSON:', chatJson);
         
-        // 示例：GitHub API保存逻辑（需要根据实际情况调整）
-        // const githubToken = 'YOUR_GITHUB_TOKEN'; // 应该从配置中获取
-        // const repoOwner = 'YOUR_REPO_OWNER';
-        // const repoName = 'YOUR_REPO_NAME';
-        // const filePath = `daily_chats/${dateStr}.json`;
+        // GitHub API配置 - 这些应该从配置中获取
+        // 注意：在实际应用中，这些配置应该从安全的地方获取，而不是硬编码
+        const githubToken = localStorage.getItem('githubToken') || config.githubToken || '';
+        const repoOwner = 'djantao'; // 替换为你的GitHub用户名
+        const repoName = 'agentAI'; // 替换为你的GitHub仓库名
+        const filePath = `daily/${dateStr}.json`; // 保存到daily目录下
+        const branch = 'main'; // 保存到main分支
         
-        // const response = await fetch(`https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`, {
-        //     method: 'PUT',
-        //     headers: {
-        //         'Authorization': `Bearer ${githubToken}`,
-        //         'Content-Type': 'application/json'
-        //     },
-        //     body: JSON.stringify({
-        //         message: `Add chat history for ${dateStr}`,
-        //         content: btoa(chatJson),
-        //         // 可以添加branch参数指定分支
-        //     })
-        // });
+        console.log(`准备将对话记录保存到GitHub: ${repoOwner}/${repoName}/${filePath}`);
         
-        // if (!response.ok) {
-        //     const errorData = await response.json();
-        //     throw new Error(`GitHub API错误：${errorData.message || response.statusText}`);
-        // }
+        // 检查GitHub Token是否存在
+        if (!githubToken) {
+            console.warn('GitHub Token不存在，无法保存对话记录到GitHub');
+            // 保存到本地存储作为备选方案
+            localStorage.setItem(`chatHistory_${dateStr}`, chatJson);
+            console.log('对话记录已保存到本地存储');
+            return;
+        }
         
-        console.log('对话记录已准备好保存为JSON格式');
+        // 检查GitHub Token权限范围
+        console.log('GitHub Token已配置，将尝试保存对话记录');
+        console.log('注意：GitHub API会自动创建不存在的目录，无需手动创建daily目录');
         
-        // 后续需要实现实际的GitHub API调用
+        try {
+            // 1. 首先检查文件是否存在，获取sha值（用于更新）
+            const checkResponse = await fetch(`https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}?ref=${branch}`, {
+                headers: {
+                    'Authorization': `Bearer ${githubToken}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                }
+            });
+            
+            let sha = '';
+            if (checkResponse.ok) {
+                const existingFile = await checkResponse.json();
+                sha = existingFile.sha;
+                console.log(`文件已存在，将更新现有文件，SHA: ${sha}`);
+            } else if (checkResponse.status === 404) {
+                console.log('文件不存在，将创建新文件');
+            } else {
+                throw new Error(`检查文件存在性失败：${checkResponse.status}`);
+            }
+            
+            // 2. 保存/更新文件
+            const saveResponse = await fetch(`https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${githubToken}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/vnd.github.v3+json'
+                },
+                body: JSON.stringify({
+                    message: `Add/Update chat history for ${dateStr}`,
+                    content: btoa(unescape(encodeURIComponent(chatJson))), // 正确的Base64编码处理
+                    branch: branch,
+                    sha: sha // 如果是更新，需要提供现有文件的sha值
+                })
+            });
+            
+            if (!saveResponse.ok) {
+                const errorData = await saveResponse.json();
+                throw new Error(`GitHub API错误：${errorData.message || saveResponse.statusText}`);
+            }
+            
+            const saveResult = await saveResponse.json();
+            console.log('对话记录已成功保存到GitHub', saveResult.content.html_url);
+            
+        } catch (githubError) {
+            console.error('GitHub API调用失败:', githubError);
+            // 保存到本地存储作为备选方案
+            localStorage.setItem(`chatHistory_${dateStr}`, chatJson);
+            console.log('对话记录已保存到本地存储作为备选方案');
+        }
+        
     } catch (error) {
         console.error('保存对话记录到GitHub失败:', error);
+        // 保存到本地存储作为备选方案
+        const date = new Date();
+        const dateStr = date.toISOString().split('T')[0];
+        localStorage.setItem(`chatHistory_${dateStr}`, JSON.stringify(learningState.chatHistory));
+        console.log('对话记录已保存到本地存储作为备选方案');
     }
 }
 
@@ -855,7 +907,8 @@ async function handleConfigSubmit(e) {
         doubaoApiKey: document.getElementById('doubaoApiKey').value,
         notionApiToken: document.getElementById('notionApiToken').value,
         notionDatabaseId: '2e43af348d578057bbe7d85ea7ef73fa', // 课程数据库ID（写死，不允许修改）
-        notionProxyUrl: document.getElementById('notionProxyUrl').value
+        notionProxyUrl: document.getElementById('notionProxyUrl').value,
+        githubToken: document.getElementById('githubToken').value // 保存GitHub Token
     };
     
     // 保存到localStorage
