@@ -520,7 +520,8 @@ async function handleContinueLearning() {
     // 替换提示词中的变量
     learningState.systemPrompt = promptText
         .replace('{course_name}', courseName)
-        .replace('{chapter_name}', chapterName);
+        .replace('{chapter_name}', chapterName)
+        .replace('{learned_knowledge}', '暂无'); // 目前暂未实现已学知识点跟踪，先设为默认值
     
     // 加载最新的学习记录
     await loadLatestLearningRecord();
