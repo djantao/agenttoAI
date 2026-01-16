@@ -130,6 +130,7 @@ header {
     margin-bottom: 30px;
     padding: 20px 0;
     border-bottom: 1px solid #e0e0e0;
+    position: relative;
 }
 
 header h1 {
@@ -141,6 +142,25 @@ header h1 {
 header p {
     color: #7f8c8d;
     font-size: 16px;
+}
+
+/* 配置按钮样式 */
+.config-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background-color: #3498db;
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    font-size: 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.config-btn:hover {
+    background-color: #2980b9;
 }
 
 /* 聊天界面样式 */

@@ -22,16 +22,17 @@
                     <input type="text" id="doubaoModel" placeholder="例如：doubao-1-5-pro-32k-250115, doubao-lite, doubao-pro" required value="doubao-1-5-pro-32k-250115">
                 </div>
                 <div class="form-group">
-                    <label for="doubaoApiKey">豆包API密钥：</label>
-                    <input type="password" id="doubaoApiKey" placeholder="请输入豆包API密钥" required autocomplete="new-password">
+                    <label for="doubaoApiKey">豆包API密钥（必填）：</label>
+                    <input type="password" id="doubaoApiKey" placeholder="请输入豆包API密钥，用于AI对话和课程生成" required autocomplete="new-password">
+                    <small>获取方式：访问豆包开发者平台，创建应用获取API密钥</small>
                 </div>
                 <div class="form-group">
-                    <label for="notionApiToken">Notion API Token：</label>
-                    <input type="password" id="notionApiToken" placeholder="请输入Notion API Token" required autocomplete="new-password">
+                    <label for="notionApiToken">Notion API Token（可选）：</label>
+                    <input type="password" id="notionApiToken" placeholder="请输入Notion API Token" autocomplete="new-password">
                 </div>
                 <div class="form-group">
                     <label for="notionDatabaseId">Notion课程数据库ID：</label>
-                    <input type="text" id="notionDatabaseId" placeholder="课程数据库ID（已写死）" required value="2e43af348d578057bbe7d85ea7ef73fa" readonly>
+                    <input type="text" id="notionDatabaseId" placeholder="课程数据库ID（已写死）" value="2e43af348d578057bbe7d85ea7ef73fa" readonly>
                 </div>
                 <div class="form-group">
                     <label for="notionProxyUrl">Notion代理URL（可选）：</label>
@@ -53,6 +54,7 @@
         <header>
             <h1>AI学习助手</h1>
             <p>通过对话分析您的学习需求，生成个性化课程列表</p>
+            <button id="configBtn" class="config-btn">修改配置</button>
         </header>
         
         <main>

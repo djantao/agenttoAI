@@ -28,6 +28,7 @@ const elements = {
     // 配置相关
     configModal: document.getElementById('configModal'),
     configForm: document.getElementById('configForm'),
+    configBtn: document.getElementById('configBtn'),
     
     // 页签相关
     tabBtns: document.querySelectorAll('.tab-btn'),
@@ -111,6 +112,7 @@ async function initApp() {
     elements.resetBtn.addEventListener('click', resetConversation);
     elements.syncToNotion.addEventListener('click', syncCoursesToNotion);
     elements.regenerateBtn.addEventListener('click', regenerateCourses);
+    elements.configBtn.addEventListener('click', handleConfigBtnClick);
     
     // 页签事件
     elements.tabBtns.forEach(btn => {
@@ -124,6 +126,29 @@ async function initApp() {
     elements.stopLearningBtn.addEventListener('click', handleStopLearning);
     elements.learningSendBtn.addEventListener('click', handleLearningSendMessage);
     elements.learningUserInput.addEventListener('keydown', handleLearningKeyDown);
+    
+    // 初始化表单值
+    populateConfigForm();
+}
+
+// 处理配置按钮点击
+function handleConfigBtnClick() {
+    // 填充表单当前配置值
+    populateConfigForm();
+    // 显示配置弹窗
+    elements.configModal.style.display = 'flex';
+}
+
+// 填充配置表单
+function populateConfigForm() {
+    // 填充当前配置到表单
+    document.getElementById('doubaoApiUrl').value = config.doubaoApiUrl || 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
+    document.getElementById('doubaoModel').value = config.doubaoModel || 'doubao-1-5-pro-32k-250115';
+    document.getElementById('doubaoApiKey').value = config.doubaoApiKey || '';
+    document.getElementById('notionApiToken').value = config.notionApiToken || '';
+    document.getElementById('notionDatabaseId').value = '2e43af348d578057bbe7d85ea7ef73fa'; // 写死值
+    document.getElementById('notionProxyUrl').value = config.notionProxyUrl || 'https://notion-proxy.timbabys80.workers.dev/';
+    document.getElementById('githubToken').value = config.githubToken || '';
 }
 
 // 处理页签点击
