@@ -185,6 +185,46 @@ async function handleSaveLearningRecord(requestBody, headers) {
     }
 }
 
+// 处理获取页面详情请求
+async function handleGetPage(requestBody, headers) {
+    const { notionApiToken, pageId } = requestBody;
+    
+    if (!notionApiToken || !pageId) {
+        return new Response(JSON.stringify({ error: '缺少必要参数' }), {
+            status: 400,
+            headers: headers
+        });
+    }
+    
+    try {
+        // 调用Notion API获取页面详情
+        const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${notionApiToken}`,
+                'Content-Type': 'application/json',
+                'Notion-Version': '2022-06-28'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(`Notion API获取页面详情失败: ${data.message || response.status}`);
+        }
+        
+        // 返回页面详情
+        return new Response(JSON.stringify(data), {
+            headers: headers
+        });
+    } catch (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: headers
+        });
+    }
+}
+
 // 处理POST请求
 async function handlePost(request) {
     const origin = request.headers.get('Origin');
@@ -208,6 +248,11 @@ async function handlePost(request) {
         // 新增：处理保存学习记录请求
         if (action === 'save_learning_record') {
             return handleSaveLearningRecord(requestBody, headers);
+        }
+        
+        // 新增：处理获取页面详情请求
+        if (action === 'get_page') {
+            return handleGetPage(requestBody, headers);
         }
         
         // 原有：处理同步课程请求
